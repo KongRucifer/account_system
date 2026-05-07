@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pnpm run *)",
+      "PowerShell(Get-Content *)"
+    ]
+  }
+}

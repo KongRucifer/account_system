@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Auth & Authorization Tables
+// ============================================================
+
+model SystemUser {
+  id        String   @id @default(uuid())
+  username  String   @unique @db.VarChar(50)
+  password  String   @db.VarChar(255)
+  fullName  String   @map("full_name") @db.VarChar(100)
+  roleId    Int      @map("role_id")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  role     Role      @relation(fields: [roleId], references: [id])
+  accounts Account[]
+
+  @@map("system_user")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(50)
+  description String? @db.Text
+
+  systemUsers     SystemUser[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(100)
+  code String @unique @db.VarChar(50)
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// Account & Branch Tables
+// ============================================================
+
+model Account {
+  id         String  @id @default(uuid())
+  accNumber  String  @map("acc_number") @db.VarChar(20)
+  accNameLao String  @map("acc_name_lao") @db.VarChar(150)
+  accNameEng String  @map("acc_name_eng") @db.VarChar(150)
+  userId     String  @map("user_id")
+  vbcodeId   Int     @map("vbcode")
+  balance    Decimal @default(0) @db.Decimal(18, 2)
+  currency   String  @default("LAK") @db.VarChar(10)
+  status     Int     @default(1)
+
+  user         SystemUser    @relation(fields: [userId], references: [id])
+  branch       Vbcode        @relation(fields: [vbcodeId], references: [id])
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+model Vbcode {
+  id         Int     @id @default(autoincrement())
+  branchName String  @map("branch_name") @db.VarChar(100)
+  branchCode String  @map("branch_code") @db.VarChar(20)
+  location   String? @db.Text
+
+  accounts    Account[]
+  cnyLakRates CnyLakRate[]
+
+  @@map("vbcode")
+}
+
+model CnyLakRate {
+  id       Int      @id @default(autoincrement())
+  date     DateTime @db.Date
+  rate     Decimal  @db.Decimal(12, 4)
+  vbcodeId Int      @map("vbcode")
+
+  branch Vbcode @relation(fields: [vbcodeId], references: [id])
+
+  @@map("cny_lak_rate")
+}
+
+// ============================================================
+// Transaction Summary Table
+// ============================================================
+
+model Transaction {
+  id              String   @id @default(uuid())
+  accountId       String   @map("account_id")
+  amount          Decimal  @db.Decimal(18, 2)
+  transactionType String   @map("transaction_type") @db.VarChar(20)
+  description     String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@map("transactions")
+}
