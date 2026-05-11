@@ -443,10 +443,29 @@ model ClientAccount {
   vbCode   String @map("vbcode") @db.VarChar(7)
   password String @db.Text
 
-  client Client @relation(fields: [clientId], references: [id])
-  vb     VbCode @relation(fields: [vbCode], references: [id])
+  client        Client          @relation(fields: [clientId], references: [id])
+  vb            VbCode          @relation(fields: [vbCode], references: [id])
+  refreshTokens RefreshToken[]
 
   @@map("client_account")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  clientId    String    @map("client_id") @db.Uuid
+  token       String    @unique @db.Text
+  expiresAt   DateTime  @map("expires_at") @db.Timestamp(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamp(6)
+  isRevoked   Boolean   @default(false) @map("is_revoked")
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  userAgent   String?   @map("user_agent") @db.Text
+
+  clientAccount ClientAccount @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([token])
+  @@map("refresh_token")
 }
 
 model IdDocument {
