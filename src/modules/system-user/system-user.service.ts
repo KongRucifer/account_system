@@ -6,42 +6,44 @@ export class SystemUserService {
   constructor(private readonly prisma: PrismaService) {}
 
   findAll() {
-    return this.prisma.systemUser.findMany({
+    return this.prisma.client.findMany({
       select: {
         id: true,
-        userName: true,
-        roles: {
-          select: {
-            systemRole: {
-              select: { id: true, nameEng: true, nameLao: true },
-            },
-          },
+        bankbookNumber: true,
+        firstName: true,
+        lastName: true,
+        nickName: true,
+        phoneNumber: true,
+        vbCode: true,
+        statusId: true,
+        clientAccount: {
+          select: { id: true, vbCode: true },
         },
-        nsoEmployee: true,
       },
     });
   }
 
-  async findOne(id: number) {
-    const user = await this.prisma.systemUser.findUnique({
+  async findOne(id: string) {
+    const client = await this.prisma.client.findUnique({
       where: { id },
       select: {
         id: true,
-        userName: true,
-        roles: {
-          include: {
-            systemRole: true,
-          },
+        bankbookNumber: true,
+        firstName: true,
+        lastName: true,
+        nickName: true,
+        phoneNumber: true,
+        vbCode: true,
+        statusId: true,
+        clientAccount: {
+          select: { id: true, vbCode: true },
         },
-        nsoEmployee: {
-          include: {
-            nso: true,
-            nsoOffice: true,
-          },
+        accountOwners: {
+          include: { account: true },
         },
       },
     });
-    if (!user) throw new NotFoundException(`User ${id} not found`);
-    return user;
+    if (!client) throw new NotFoundException(`Client ${id} not found`);
+    return client;
   }
 }

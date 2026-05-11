@@ -195,60 +195,85 @@ export class AccountsService {
     };
   }
 
-  findByUser(userId: number) {
-    // Find accounts by linked client through accountOwners
+  findByUser(clientId: string) {
     return this.prisma.accounts.findMany({
       where: {
         accountOwners: {
-          some: {
-            clientId: { equals: userId.toString() },
-          },
+          some: { clientId },
         },
       },
       include: {
         vb: true,
         accountOwners: {
-          include: {
-            client: true,
-          },
+          include: { client: true },
         },
       },
     });
   }
 
-  // BCEL One-style yearly summary - simplified version
-  async getYearlySummary(userId: number, year: number) {
-    const user = await this.prisma.systemUser.findUnique({
-      where: { id: userId },
-      include: {
-        roles: {
-          include: {
-            systemRole: true,
-          },
-        },
-        nsoEmployee: {
-          include: {
-            nso: true,
-            nsoOffice: true,
-          },
-        },
+  async getYearlySummary(clientId: string, year: number) {
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        id: true,
+        bankbookNumber: true,
+        firstName: true,
+        lastName: true,
+        nickName: true,
+        vbCode: true,
       },
     });
 
-    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    if (!client) throw new NotFoundException(`Client ${clientId} not found`);
 
-    const userRole = user.roles[0]?.systemRole;
+    const accounts = await this.prisma.accounts.findMany({
+      where: {
+        accountOwners: { some: { clientId } },
+      },
+      select: { accNumber: true, accNameEng: true, accTypeId: true, currentBalance: true },
+    });
+
+    const accNumbers = accounts.map((a) => a.accNumber);
+
+    const transactions = await this.prisma.transactions.findMany({
+      where: {
+        debitAccNumber: { in: accNumbers },
+        date: {
+          gte: new Date(`${year}-01-01`),
+          lte: new Date(`${year}-12-31`),
+        },
+      },
+      select: {
+        transactionCodeId: true,
+        amount: true,
+        date: true,
+        debitAccNumber: true,
+      },
+    });
+
+    const totalDeposit = transactions
+      .filter((t) => ['2201', '2101'].includes(t.transactionCodeId ?? ''))
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const totalLoanRepayment = transactions
+      .filter((t) => t.transactionCodeId === '1010')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     return {
-      userProfile: {
-        id: user.id,
-        username: user.userName,
-        role: userRole?.nameEng,
-        employee: user.nsoEmployee,
+      clientProfile: {
+        id: client.id,
+        bankbookNumber: client.bankbookNumber,
+        firstName: client.firstName,
+        lastName: client.lastName,
+        nickName: client.nickName,
+        vbCode: client.vbCode,
       },
+      accounts,
       yearlySummary: {
         year,
-        message: 'Detailed transaction summary not yet implemented for new schema',
+        totalDeposit,
+        totalLoanRepayment,
+        transactionCount: transactions.length,
       },
     };
   }

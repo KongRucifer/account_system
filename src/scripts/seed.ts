@@ -1,9 +1,8 @@
 /**
  * Seed Script
  * Creates:
- *  - 1 SystemUser (login: admin / password: admin1234)
+ *  - 1 Client with ClientAccount (login: bankbookNumber=00001 / password=client1234)
  *  - Required lookup data (Status, AccountType, TransactionCode, Province, District, Village, VbCode, ClientLoanRepaymentType)
- *  - 1 Client (account owner)
  *  - 3 Accounts (savings, loan, general)
  *  - AccountOwner links
  *  - ClientSavingArrangement  (for savings account)
@@ -30,7 +29,7 @@ const VB_CODE        = '0101001';   // Nongping VB, Chanthabouly, Vientiane Capi
 const PROVINCE_ID    = '01';        // Vientiane Capital
 const DISTRICT_ID    = '0101';      // Chanthabouly
 const VILLAGE_ID     = '001';
-const CLIENT_ID      = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+const CLIENT_ID      = 'dfb48ae3-f5bf-469a-b71c-e7d493435bc3'; // real client with bankbookNumber=00001
 // accNumber format: vbCode(7) + running(8) = 15 chars
 const ACC_SAVINGS    = '010100100000001'; // 15 chars: vbCode(7)+running(8)
 const ACC_LOAN       = '010100100000002';
@@ -46,6 +45,7 @@ const TX_CODE_LOAN_PAY = '1010';    // "Client repays loan"
 const TX_CODE_LOAN_DIS = '1201';    // "VB disburses loan to client"
 const REPAYMENT_TYPE_ID = '01';     // "installment_monthly"
 const LOAN_RULE_ID   = '01010011';  // new rule scoped to VB 0101001
+const CLIENT_PASSWORD = 'client1234'; // login password for client
 
 async function main() {
   console.log('🌱  Starting seed...');
@@ -53,46 +53,35 @@ async function main() {
   // ── 1-5. Lookup data already exists in DB — skip creation
   console.log('✅  Lookup data (Status/Province/District/VbCode/AccountType/TxCode/RepaymentType) — already in DB');
 
-  // ── 6. SystemUser (login: admin / password: admin1234) ─────────────────────
-  const hashedPassword = await bcrypt.hash('admin1234', 10);
-  const existingUser = await prisma.systemUser.findFirst({
-    where: { userName: 'admin' },
+  // ── 6. Client — use existing client from DB with bankbookNumber=00001 ─────────────────────
+  const realClient = await prisma.client.findFirst({
+    where: { bankbookNumber: '00001' },
+    select: { id: true, bankbookNumber: true, vbCode: true, firstName: true },
   });
-  const systemUser = existingUser
-    ? await prisma.systemUser.update({
-        where: { id: existingUser.id },
-        data: { password: hashedPassword, statusId: STATUS_ACTIVE },
-      })
-    : await prisma.systemUser.create({
-        data: {
-          userName: 'admin',
-          password: hashedPassword,
-          statusId: STATUS_ACTIVE,
-        },
-      });
-  console.log(`✅  SystemUser  (id: ${systemUser.id}, username: admin, password: admin1234)`);
+  if (!realClient) {
+    throw new Error('❌  No client found with bankbookNumber=00001 in DB');
+  }
+  const clientId = realClient.id;
+  const clientVbCode = realClient.vbCode;
+  console.log(`✅  Client (id: ${clientId}, name: ${realClient.firstName}, vbCode: ${clientVbCode})`);
 
-  // ── 7. Client ──────────────────────────────────────────────────────────────
-  await prisma.client.upsert({
-    where: { id: CLIENT_ID },
-    update: {},
-    create: {
-      id: CLIENT_ID,
-      bankbookNumber: '00001',
-      firstName: 'ສົມໄຊ',
-      lastName: 'ວົງສະຫວັນ',
-      nickName: 'ສົມໄຊ ວົງສະຫວັນ',
-      genderEng: 'Male',
-      genderLao: 'ຊາຍ',
-      birthDate: new Date('1990-05-15'),
-      clientType: 'Individual',
-      statusId: STATUS_ACTIVE,
-      phoneNumber: '02012345678',
-      vbCode: VB_CODE,
-      sortNo: '0001',
-    },
-  });
-  console.log('✅  Client');
+  // ── 6b. ClientAccount (login credentials) ─────────────────────────────────
+  const hashedClientPassword = await bcrypt.hash(CLIENT_PASSWORD, 10);
+  const existingClientAccount = await prisma.$queryRaw<{id:string}[]>`
+    SELECT id FROM client_account WHERE client_id = ${clientId}::uuid LIMIT 1
+  `.catch(() => [] as {id:string}[]);
+  if (existingClientAccount.length === 0) {
+    await prisma.$executeRaw`
+      INSERT INTO client_account (id, client_id, vbcode, password)
+      VALUES (gen_random_uuid(), ${clientId}::uuid, ${clientVbCode}, ${hashedClientPassword})
+    `;
+    console.log(`✅  ClientAccount  (bankbookNumber: 00001, password: ${CLIENT_PASSWORD})`);
+  } else {
+    await prisma.$executeRaw`
+      UPDATE client_account SET password = ${hashedClientPassword} WHERE client_id = ${clientId}::uuid
+    `;
+    console.log(`✅  ClientAccount  (updated password: ${CLIENT_PASSWORD})`);
+  }
 
   // ── 8. Credit counterpart account (needed for transaction FK) ──────────────
   await prisma.accounts.upsert({
@@ -174,15 +163,15 @@ async function main() {
         bankbookNumber_accNumber_clientId: {
           bankbookNumber: '00001',
           accNumber,
-          clientId: CLIENT_ID,
+          clientId: clientId,
         },
       },
       update: {},
       create: {
         bankbookNumber: '00001',
         accNumber,
-        clientId: CLIENT_ID,
-        vbCode: VB_CODE,
+        clientId: clientId,
+        vbCode: clientVbCode,
       },
     });
   }
@@ -325,7 +314,9 @@ async function main() {
 
   console.log('\n🎉  Seed complete!');
   console.log('─────────────────────────────────────────');
-  console.log('  Login credentials:  admin / admin1234');
+  console.log('  Client Login:');
+  console.log(`    bankbookNumber : 00001`);
+  console.log(`    password       : ${CLIENT_PASSWORD}`);
   console.log('  Accounts:');
   console.log(`    Savings : ${ACC_SAVINGS}`);
   console.log(`    Loan    : ${ACC_LOAN}`);

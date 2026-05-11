@@ -280,6 +280,7 @@ model VbCode {
   ews                            Ews[]
   cnyLakRates                    CnyLakRate[]
   profitDistributionRules        ProfitDistributionRule[]
+  clientAccounts                 ClientAccount[]
 
   @@map("vbcode")
 }
@@ -431,8 +432,21 @@ model Client {
   clientLoanArrangements ClientLoanArrangement[]
   vbCommitteeTeams       VbCommitteeTeam[]
   profitDistrVbcs        ProfitDistrVbc[]
+  clientAccount          ClientAccount?
 
   @@map("client")
+}
+
+model ClientAccount {
+  id       String @id @default(uuid()) @db.Uuid
+  clientId String @unique @map("client_id") @db.Uuid
+  vbCode   String @map("vbcode") @db.VarChar(7)
+  password String @db.Text
+
+  client Client @relation(fields: [clientId], references: [id])
+  vb     VbCode @relation(fields: [vbCode], references: [id])
+
+  @@map("client_account")
 }
 
 model IdDocument {
