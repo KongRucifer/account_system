@@ -1,9 +1,8 @@
 import { Controller, Get, Param } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SystemUserService } from './system-user.service';
 
 @ApiTags('2. System Users')
-@ApiBearerAuth('JWT-auth')
 @Controller('system-user')
 export class SystemUserController {
   constructor(private readonly systemUserService: SystemUserService) {}
@@ -21,6 +20,6 @@ export class SystemUserController {
   @ApiResponse({ status: 200, description: 'Full user detail with role and accounts' })
   @ApiResponse({ status: 404, description: 'User not found' })
   findOne(@Param('id') id: string) {
-    return this.systemUserService.findOne(id);
+    return this.systemUserService.findOne(parseInt(id, 10));
   }
 }

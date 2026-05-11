@@ -83,3 +83,26 @@ npx prisma db push
  
 # 4. เปิด GUI ดูข้อมูล
 npx prisma studio
+
+
+
+
+
+
+logic 
+
+Client (login) → clientId
+    ↓
+AccountOwner (find all accounts for client and the client can click in which account and it will go page detail of the account that )
+    ↓
+├── Accounts (basic account info) 
+├── ClientSavingArrangement (deposit balances)
+├── ClientLoanArrangement (loan details)
+└── Transactions (transaction history)
+
+
+
+1. when check the connect to phone "C:\Users\advice\AppData\Local\Android\sdk\platform-tools\adb.exe devices"
+2. Step 3 — Set up port forwarding (the key step):
+   C:\Users\advice\AppData\Local\Android\sdk\platform-tools\adb.exe reverse tcp:4000 tcp:4000
+   This makes your phone's localhost:4000 tunnel through USB to your PC's port 4000.

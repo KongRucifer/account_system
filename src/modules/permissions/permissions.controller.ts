@@ -1,9 +1,8 @@
 import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PermissionsService } from './permissions.service';
 
 @ApiTags('4. Permissions')
-@ApiBearerAuth('JWT-auth')
 @Controller('permissions')
 export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}

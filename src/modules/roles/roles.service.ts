@@ -6,25 +6,29 @@ export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
   findAll() {
-    return this.prisma.role.findMany({
+    return this.prisma.systemRole.findMany({
       include: {
-        rolePermissions: {
-          include: { permission: true },
+        users: {
+          include: {
+            systemUser: {
+              select: { id: true, userName: true },
+            },
+          },
         },
-        _count: { select: { systemUsers: true } },
       },
     });
   }
 
-  async findOne(id: number) {
-    const role = await this.prisma.role.findUnique({
+  async findOne(id: string) {
+    const role = await this.prisma.systemRole.findUnique({
       where: { id },
       include: {
-        rolePermissions: {
-          include: { permission: true },
-        },
-        systemUsers: {
-          select: { id: true, username: true, fullName: true, isActive: true },
+        users: {
+          include: {
+            systemUser: {
+              select: { id: true, userName: true },
+            },
+          },
         },
       },
     });

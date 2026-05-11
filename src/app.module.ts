@@ -9,6 +9,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { VbcodeModule } from './modules/vbcode/vbcode.module';
 import { CnyLakRateModule } from './modules/cny-lak-rate/cny-lak-rate.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
     VbcodeModule,
     CnyLakRateModule,
     TransactionsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

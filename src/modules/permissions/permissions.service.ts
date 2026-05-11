@@ -1,31 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class PermissionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  // Stub implementation - Permission model doesn't exist in new schema
+  // New schema uses SystemRole-based permissions instead
 
   findAll() {
-    return this.prisma.permission.findMany({
-      include: {
-        _count: { select: { rolePermissions: true } },
-      },
-      orderBy: { id: 'asc' },
-    });
+    return [];
   }
 
   async findOne(id: number) {
-    const permission = await this.prisma.permission.findUnique({
-      where: { id },
-      include: {
-        rolePermissions: {
-          include: {
-            role: { select: { id: true, name: true, description: true } },
-          },
-        },
-      },
-    });
-    if (!permission) throw new NotFoundException(`Permission ${id} not found`);
-    return permission;
+    return null;
   }
 }

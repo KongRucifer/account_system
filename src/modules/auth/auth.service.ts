@@ -12,26 +12,25 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto) {
-    const user = await this.prisma.systemUser.findUnique({
-      where: { username: loginDto.username },
-      include: {
-        role: {
-          include: {
-            rolePermissions: {
-              include: { permission: true },
-            },
-          },
-        },
+    const user = await this.prisma.systemUser.findFirst({
+      where: { userName: loginDto.username },
+      select: {
+        id: true,
+        userName: true,
+        password: true,
       },
     });
 
-    if (!user) throw new UnauthorizedException('Invalid credentials');
-    if (!user.isActive) throw new UnauthorizedException('Account is inactive');
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
-    if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
-    const payload = { sub: user.id, username: user.username, roleId: user.roleId };
+    const payload = { sub: user.id, username: user.userName };
     const accessToken = await this.jwtService.signAsync(payload);
 
     return {
@@ -40,19 +39,7 @@ export class AuthService {
       expiresIn: '24h',
       user: {
         id: user.id,
-        username: user.username,
-        fullName: user.fullName,
-        isActive: user.isActive,
-        role: {
-          id: user.role.id,
-          name: user.role.name,
-          description: user.role.description,
-          permissions: user.role.rolePermissions.map((rp) => ({
-            id: rp.permission.id,
-            name: rp.permission.name,
-            code: rp.permission.code,
-          })),
-        },
+        username: user.userName,
       },
     };
   }

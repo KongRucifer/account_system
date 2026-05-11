@@ -96,3 +96,10 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+
+
+## when login can not and use this sql to run in database for 
+UPDATE system_user 
+SET password = '$2b$10$I6lvaLCLctvTKeiU3jCVmO42a.kza9R6DwUxqqrdMbsmyXEa6VXJ2'
+WHERE user_name = 'DEV';

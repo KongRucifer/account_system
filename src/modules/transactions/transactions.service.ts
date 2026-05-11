@@ -1,70 +1,143 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaginationDto, PaginatedResult, createPaginatedResponse, calculatePagination } from '../../common/dto/pagination.dto';
+import { getPrismaPagination } from '../../common/utils/prisma-pagination.util';
 
 @Injectable()
 export class TransactionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.transaction.findMany({
-      include: {
-        account: {
-          select: {
-            id: true,
-            accNumber: true,
-            accNameLao: true,
-            accNameEng: true,
-            currency: true,
-            branch: { select: { id: true, branchName: true, branchCode: true } },
+  async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<any>> {
+    const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+
+    const [transactions, total] = await Promise.all([
+      this.prisma.transactions.findMany({
+        skip,
+        take,
+        include: {
+          debitAccount: {
+            select: {
+              accNumber: true,
+              accNameLao: true,
+              accNameEng: true,
+              vb: { select: { id: true, nameEng: true, nameLao: true } },
+            },
           },
+          transactionCode: true,
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { date: paginationDto.sort || 'desc' },
+      }),
+      this.prisma.transactions.count(),
+    ]);
+
+    const pagination = calculatePagination(total, page, limit);
+    return createPaginatedResponse(transactions, pagination, 'Transactions fetched successfully');
   }
 
   async findOne(id: string) {
-    const tx = await this.prisma.transaction.findUnique({
+    const tx = await this.prisma.transactions.findUnique({
       where: { id },
       include: {
-        account: {
+        debitAccount: {
           include: {
-            user: { select: { id: true, username: true, fullName: true } },
-            branch: true,
+            vb: true,
           },
         },
+        transactionCode: true,
       },
     });
     if (!tx) throw new NotFoundException(`Transaction ${id} not found`);
     return tx;
   }
 
-  findByAccount(accountId: string) {
-    return this.prisma.transaction.findMany({
-      where: { accountId },
-      include: {
-        account: { select: { id: true, accNumber: true, accNameLao: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findByAccount(accountId: string, paginationDto: PaginationDto): Promise<PaginatedResult<any>> {
+    const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+
+    const [transactions, total] = await Promise.all([
+      this.prisma.transactions.findMany({
+        where: { debitAccNumber: accountId },
+        skip,
+        take,
+        include: {
+          debitAccount: { select: { accNumber: true, accNameLao: true } },
+          transactionCode: true,
+        },
+        orderBy: { date: paginationDto.sort || 'desc' },
+      }),
+      this.prisma.transactions.count({ where: { debitAccNumber: accountId } }),
+    ]);
+
+    const pagination = calculatePagination(total, page, limit);
+    return createPaginatedResponse(transactions, pagination, 'Account transactions fetched successfully');
   }
 
-  findByYear(year: number) {
-    const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
-    const endDate = new Date(`${year + 1}-01-01T00:00:00.000Z`);
-    return this.prisma.transaction.findMany({
-      where: { createdAt: { gte: startDate, lt: endDate } },
-      include: {
-        account: {
-          select: {
-            id: true,
-            accNumber: true,
-            accNameLao: true,
-            branch: { select: { branchName: true } },
+  async findByYear(year: number, paginationDto: PaginationDto): Promise<PaginatedResult<any>> {
+    const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year + 1}-01-01`);
+
+    const [transactions, total] = await Promise.all([
+      this.prisma.transactions.findMany({
+        where: { date: { gte: startDate, lt: endDate } },
+        skip,
+        take,
+        include: {
+          debitAccount: {
+            select: {
+              accNumber: true,
+              accNameLao: true,
+              vb: { select: { nameEng: true } },
+            },
           },
+          transactionCode: true,
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { date: paginationDto.sort || 'desc' },
+      }),
+      this.prisma.transactions.count({ where: { date: { gte: startDate, lt: endDate } } }),
+    ]);
+
+    const pagination = calculatePagination(total, page, limit);
+    return createPaginatedResponse(transactions, pagination, 'Year transactions fetched successfully');
+  }
+
+  async findByAccountAndYear(
+    accountId: string,
+    year: number,
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year + 1}-01-01`);
+
+    const [transactions, total] = await Promise.all([
+      this.prisma.transactions.findMany({
+        where: {
+          debitAccNumber: accountId,
+          date: { gte: startDate, lt: endDate },
+        },
+        skip,
+        take,
+        include: {
+          debitAccount: {
+            select: {
+              accNumber: true,
+              accNameLao: true,
+              vb: { select: { nameEng: true, nameLao: true } },
+            },
+          },
+          transactionCode: true,
+        },
+        orderBy: { date: paginationDto.sort || 'desc' },
+      }),
+      this.prisma.transactions.count({
+        where: {
+          debitAccNumber: accountId,
+          date: { gte: startDate, lt: endDate },
+        },
+      }),
+    ]);
+
+    const pagination = calculatePagination(total, page, limit);
+    return createPaginatedResponse(transactions, pagination, 'Account year transactions fetched successfully');
   }
 }

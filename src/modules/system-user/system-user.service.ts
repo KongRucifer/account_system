@@ -9,36 +9,35 @@ export class SystemUserService {
     return this.prisma.systemUser.findMany({
       select: {
         id: true,
-        username: true,
-        fullName: true,
-        isActive: true,
-        createdAt: true,
-        role: {
-          select: { id: true, name: true, description: true },
+        userName: true,
+        roles: {
+          select: {
+            systemRole: {
+              select: { id: true, nameEng: true, nameLao: true },
+            },
+          },
         },
-        _count: { select: { accounts: true } },
+        nsoEmployee: true,
       },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: number) {
     const user = await this.prisma.systemUser.findUnique({
       where: { id },
       select: {
         id: true,
-        username: true,
-        fullName: true,
-        isActive: true,
-        createdAt: true,
-        role: {
+        userName: true,
+        roles: {
           include: {
-            rolePermissions: {
-              include: { permission: true },
-            },
+            systemRole: true,
           },
         },
-        accounts: {
-          include: { branch: true },
+        nsoEmployee: {
+          include: {
+            nso: true,
+            nsoOffice: true,
+          },
         },
       },
     });

@@ -1,26 +1,26 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { VbcodeService } from './vbcode.service';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('6. Vbcode (Branches)')
-@ApiBearerAuth('JWT-auth')
 @Controller('vbcode')
 export class VbcodeController {
   constructor(private readonly vbcodeService: VbcodeService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all branches with account and exchange rate counts' })
-  @ApiResponse({ status: 200, description: 'List of branches' })
-  findAll() {
-    return this.vbcodeService.findAll();
+  @ApiOperation({ summary: 'Get all branches with accounts and exchange rates (paginated)' })
+  @ApiResponse({ status: 200, description: 'Paginated list of branches with metadata' })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.vbcodeService.findAll(paginationDto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get branch by ID — includes accounts and 10 most recent exchange rates' })
-  @ApiParam({ name: 'id', type: Number, description: 'Branch ID' })
+  @ApiParam({ name: 'id', type: String, description: 'Branch Code (VB Code)' })
   @ApiResponse({ status: 200, description: 'Branch detail with accounts and rates' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.vbcodeService.findOne(id);
   }
 }

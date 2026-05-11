@@ -8,26 +8,26 @@ export class CnyLakRateService {
   findAll() {
     return this.prisma.cnyLakRate.findMany({
       include: {
-        branch: { select: { id: true, branchName: true, branchCode: true } },
+        vb: { select: { id: true, nameEng: true, nameLao: true } },
       },
       orderBy: { date: 'desc' },
     });
   }
 
-  async findOne(id: number) {
+  async findOne(date: Date, vbCode: string) {
     const rate = await this.prisma.cnyLakRate.findUnique({
-      where: { id },
-      include: { branch: true },
+      where: { date_vbCode: { date, vbCode } },
+      include: { vb: true },
     });
-    if (!rate) throw new NotFoundException(`Exchange rate ${id} not found`);
+    if (!rate) throw new NotFoundException(`Exchange rate not found`);
     return rate;
   }
 
-  findByBranch(vbcodeId: number) {
+  findByBranch(vbCode: string) {
     return this.prisma.cnyLakRate.findMany({
-      where: { vbcodeId },
+      where: { vbCode },
       include: {
-        branch: { select: { id: true, branchName: true, branchCode: true } },
+        vb: { select: { id: true, nameEng: true, nameLao: true } },
       },
       orderBy: { date: 'desc' },
     });
