@@ -15,13 +15,13 @@ export class PaginationDto {
   @Min(1)
   page?: number = 1;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100, description: 'Items per page' })
+  @ApiPropertyOptional({ default: 12, minimum: 1, maximum: 100, description: 'Items per page' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  limit?: number = 10;
+  limit?: number = 12;
 
   @ApiPropertyOptional({ description: 'Search term to filter results' })
   @IsOptional()

@@ -1,7 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto, PaginatedResult, createPaginatedResponse, calculatePagination } from '../../common/dto/pagination.dto';
-import { getPrismaPagination } from '../../common/utils/prisma-pagination.util';
 
 export interface AccountDashboardSummary {
   account: {
@@ -37,48 +35,12 @@ export interface AccountDashboardSummary {
     interestNumerator: number;
     date: Date;
   } | null;
-  // financialSummary: {
-  //   currentBalance: number;
-  //   totalLoanAmount: number;
-  //   loanOutstanding: number;
-  //   savingsBalance: number;
-  //   netPosition: number;
-  // };
-}
-
-export interface AccountYearlySummary {
-  year: number;
-  accNumber: string;
-  summary: {
-    totalDeposits: number;
-    totalWithdrawals: number;
-    totalLoanPayments: number;
-    totalInterestPaid: number;
-    netCashFlow: number;
-    transactionCount: number;
-  };
-  monthlyBreakdown: Array<{
-    month: number;
-    monthName: string;
-    deposits: number;
-    withdrawals: number;
-    loanPayments: number;
-    transactionCount: number;
-  }>;
-  transactions: PaginatedResult<any>;
 }
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Get complete account dashboard summary
-   * - Account info
-   * - Loan details (if any)
-   * - Savings details (if any)
-   * - Financial summary
-   */
   async getAccountDashboard(accNumber: string): Promise<AccountDashboardSummary> {
     // 1. Get account info
     const account = await this.prisma.accounts.findUnique({
@@ -160,181 +122,6 @@ export class DashboardService {
       //   savingsBalance,
       //   netPosition: currentBalance + savingsBalance - loanOutstanding,
       // },
-    };
-  }
-
-  /**
-   * Get yearly transaction summary for a specific account
-   */
-  async getAccountYearlySummary(
-    accNumber: string,
-    year: number,
-    paginationDto: PaginationDto,
-  ): Promise<AccountYearlySummary> {
-    // Verify account exists
-    const account = await this.prisma.accounts.findUnique({
-      where: { accNumber },
-      select: { accNumber: true },
-    });
-
-    if (!account) {
-      throw new NotFoundException(`Account ${accNumber} not found`);
-    }
-
-    // Date range for the year
-    const startDate = new Date(`${year}-01-01`);
-    const endDate = new Date(`${year + 1}-01-01`);
-
-    // Get transactions for this account in the year
-    const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
-
-    const [transactions, total] = await Promise.all([
-      this.prisma.transactions.findMany({
-        where: {
-          debitAccNumber: accNumber,
-          date: { gte: startDate, lt: endDate },
-        },
-        skip,
-        take,
-        include: {
-          transactionCode: true,
-        },
-        orderBy: { date: paginationDto.sort || 'desc' },
-      }),
-      this.prisma.transactions.count({
-        where: {
-          debitAccNumber: accNumber,
-          date: { gte: startDate, lt: endDate },
-        },
-      }),
-    ]);
-
-    // Get all transactions for summary calculations (without pagination)
-    const allYearTransactions = await this.prisma.transactions.findMany({
-      where: {
-        debitAccNumber: accNumber,
-        date: { gte: startDate, lt: endDate },
-      },
-      include: {
-        transactionCode: true,
-      },
-    });
-
-    // Calculate yearly totals
-    let totalDeposits = 0;
-    let totalWithdrawals = 0;
-    let totalLoanPayments = 0;
-    let totalInterestPaid = 0;
-
-    // Monthly aggregation
-    const monthlyData: Record<number, { deposits: number; withdrawals: number; loanPayments: number; count: number }> = {};
-
-    for (let i = 1; i <= 12; i++) {
-      monthlyData[i] = { deposits: 0, withdrawals: 0, loanPayments: 0, count: 0 };
-    }
-
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-    for (const tx of allYearTransactions) {
-      const amount = Number(tx.amount);
-      const month = tx.date.getMonth() + 1;
-      const txCode = tx.transactionCode?.transactionCode || '';
-      const txName = (tx.transactionCode?.nameEng || '').toLowerCase();
-
-      // Classify transaction based on code/name patterns
-      if (txCode.startsWith('D') || txName.includes('deposit') || txName.includes('saving')) {
-        totalDeposits += amount;
-        monthlyData[month].deposits += amount;
-      } else if (txCode.startsWith('W') || txName.includes('withdraw')) {
-        totalWithdrawals += amount;
-        monthlyData[month].withdrawals += amount;
-      } else if (txName.includes('loan') && (txName.includes('payment') || txName.includes('repay'))) {
-        totalLoanPayments += amount;
-        monthlyData[month].loanPayments += amount;
-      } else if (txName.includes('interest')) {
-        totalInterestPaid += amount;
-      }
-
-      monthlyData[month].count++;
-    }
-
-    // Format monthly breakdown
-    const monthlyBreakdown = Object.entries(monthlyData).map(([month, data]) => ({
-      month: parseInt(month),
-      monthName: monthNames[parseInt(month) - 1],
-      deposits: data.deposits,
-      withdrawals: data.withdrawals,
-      loanPayments: data.loanPayments,
-      transactionCount: data.count,
-    }));
-
-    const pagination = calculatePagination(total, page, limit);
-
-    return {
-      year,
-      accNumber,
-      summary: {
-        totalDeposits,
-        totalWithdrawals,
-        totalLoanPayments,
-        totalInterestPaid,
-        netCashFlow: totalDeposits - totalWithdrawals - totalLoanPayments,
-        transactionCount: allYearTransactions.length,
-      },
-      monthlyBreakdown,
-      transactions: createPaginatedResponse(transactions, pagination, 'Yearly transactions fetched successfully'),
-    };
-  }
-
-  /**
-   * Get quick summary for account header
-   */
-  async getAccountQuickSummary(accNumber: string) {
-    const [account, savings, loan, recentTransactions] = await Promise.all([
-      // Get account basic info
-      this.prisma.accounts.findUnique({
-        where: { accNumber },
-        select: { accNumber: true, accNameLao: true, currentBalance: true },
-      }),
-      // Get savings arrangement
-      this.prisma.clientSavingArrangement.findFirst({
-        where: { accNumber },
-        select: { currentBalance: true },
-      }),
-      // Get loan arrangement
-      this.prisma.clientLoanArrangement.findFirst({
-        where: { accNumber },
-        select: { loanOutstanding: true, totalLoanAmount: true },
-      }),
-      // Recent 5 transactions
-      this.prisma.transactions.findMany({
-        where: { debitAccNumber: accNumber },
-        orderBy: { date: 'desc' },
-        take: 5,
-        include: {
-          transactionCode: true,
-        },
-      }),
-    ]);
-
-    if (!account) {
-      throw new NotFoundException(`Account ${accNumber} not found`);
-    }
-
-    return {
-      accNumber: account.accNumber,
-      accName: account.accNameLao,
-      currentBalance: Number(account.currentBalance),
-      savingsBalance: Number(savings?.currentBalance || 0),
-      loanOutstanding: Number(loan?.loanOutstanding || 0),
-      totalLoanAmount: Number(loan?.totalLoanAmount || 0),
-      recentTransactions: recentTransactions.map((tx) => ({
-        id: tx.id,
-        date: tx.date,
-        amount: Number(tx.amount),
-        description: tx.description,
-        transactionCode: tx.transactionCode?.nameLao || tx.transactionCode?.nameEng,
-      })),
     };
   }
 }

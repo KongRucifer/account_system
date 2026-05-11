@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, Headers, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService, TokenResponse } from './auth.service';
@@ -19,10 +19,9 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-    @Headers('user-agent') userAgent?: string,
   ): Promise<TokenResponse> {
     const ipAddress = this.getClientIp(req);
-    const result = await this.authService.login(loginDto, ipAddress, userAgent);
+    const result = await this.authService.login(loginDto, ipAddress);
     
     // Set tokens in HTTP-only cookies
     this.setTokenCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
@@ -38,7 +37,6 @@ export class AuthController {
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-    @Headers('user-agent') userAgent?: string,
   ): Promise<TokenResponse> {
     const ipAddress = this.getClientIp(req);
     const refreshToken = req.cookies?.refresh_token;
@@ -50,7 +48,6 @@ export class AuthController {
     const result = await this.authService.refresh(
       { refreshToken },
       ipAddress,
-      userAgent,
     );
     
     // Set new tokens in HTTP-only cookies
