@@ -1,12 +1,18 @@
 /**
- * Seed Script — New Client (bankbookNumber=01256)
+ * Seed Script — Client 3 (bankbookNumber=02500)
  * Creates:
- *  - 1 NEW Client: ສົມໃຈ ວັດທະນາ / Somjai Vatthana
- *  - ClientAccount (login: bankbookNumber=01256 / password=client1234)
+ *  - 1 NEW Client: ບຸນມີ ສີທັດ / Bounmy Sithad
+ *  - ClientAccount (login: bankbookNumber=02500 / password=client1234)
  *  - 2 Accounts: ເງິນຝາກ (savings) + ເງິນກູ້ (loan)
  *  - AccountOwner links for both accounts
  *  - ClientLoanArrangement (for loan account)
- *  - 20 Transactions across 2024-2025
+ *  - 30 Transactions across 2023-2025 with proper codes:
+ *      2201 = ເງິນຝາກ (deposit)
+ *      2202 = ເງິນຖອນ (withdrawal)
+ *      2203 = ເງິນປັບຜົນ (interest adjustment / profit)
+ *      1011 = ຊຳລະຕົ້ນທຶນ (principal repayment)
+ *      1012 = ຊຳລະດອກເບ້ຍ (interest repayment)
+ *      1201 = ປ່ອຍກູ້ (loan disbursement)
  *
  * Run: npx ts-node -r tsconfig-paths/register src/scripts/seed-client2.ts
  */
@@ -23,25 +29,29 @@ import * as bcrypt from 'bcrypt';
 const adapter = new PrismaPg(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter } as any);
 
-// ─── Constants (verified from real DB) ──────────────────────────────────────
-const CLIENT_BANKBOOK    = '01256';
+// ─── Constants ──────────────────────────────────────────────────────────────
+const CLIENT_BANKBOOK    = '02510';
 const CLIENT_PASSWORD    = 'client1234';
 const VB_CODE            = '0707044';   // ນາ, Province=07, District=0707, Village=044
-const PROVINCE_ID        = '07';
-const DISTRICT_ID        = '0707';
 const STATUS_ACTIVE      = '2';
 const ACC_TYPE_SAVINGS   = '1';         // saving accounts
 const ACC_TYPE_LOAN      = '5';         // short term loans
-const TX_CODE_DEPOSIT    = '2201';      // saving deposit
-const TX_CODE_LOAN_PAY   = '1010';      // loan repayment
-const TX_CODE_LOAN_DIS   = '1201';      // loan disbursement
+
+// Transaction codes
+const TX_DEPOSIT    = '2201';   // ເງິນຝາກ
+const TX_WITHDRAW   = '2202';   // ເງິນຖອນ
+const TX_INTEREST   = '2203';   // ເງິນປັບຜົນ (interest/profit adjustment)
+const TX_PRINCIPAL  = '1011';   // ຊຳລະຕົ້ນທຶນ
+const TX_INT_PAY    = '1012';   // ຊຳລະດອກເບ້ຍ
+const TX_LOAN_DIS   = '1201';   // ປ່ອຍກູ້
+
 const REPAYMENT_TYPE_ID  = '02';        // installment_quarterly
 const LOAN_RULE_ID       = '10040081';  // verified from DB
 
 // Account numbers: vbCode(7) + running(8) = 15 chars
-const ACC_SAVINGS2       = `${VB_CODE}20001001`;  // ເງິນຝາກ client2
-const ACC_LOAN2          = `${VB_CODE}20001002`;  // ເງິນກູ້ client2
-const ACC_CASH2          = `${VB_CODE}20009999`;  // counterpart (cash)
+const ACC_SAVINGS2       = `${VB_CODE}30002001`;  // ເງິນຝາກ client3
+const ACC_LOAN2          = `${VB_CODE}30002002`;  // ເງິນກູ້ client3
+const ACC_CASH2          = `${VB_CODE}30009998`;  // counterpart (cash)
 
 async function main() {
   console.log(`🌱  Seeding new client bankbookNumber=${CLIENT_BANKBOOK}...`);
@@ -62,17 +72,17 @@ async function main() {
       data: {
         id:              randomUUID(),
         bankbookNumber:  CLIENT_BANKBOOK,
-        firstName:       'ສົມໃຈ',
-        lastName:        'ວັດທະນາ',
-        nickName:        'ສົມໃຈ',
-        genderEng:       'Female',
-        genderLao:       'ຍິງ',
-        birthDate:       new Date('1990-05-15'),
-        clientType:      'I',        // Individual
+        firstName:       'ບຸນມີ',
+        lastName:        'ສີທັດ',
+        nickName:        'ບຸນມີ',
+        genderEng:       'Male',
+        genderLao:       'ຊາຍ',
+        birthDate:       new Date('1985-08-20'),
+        clientType:      'I',
         statusId:        STATUS_ACTIVE,
-        phoneNumber:     '02055551256',
+        phoneNumber:     '02055502500',
         vbCode:          VB_CODE,
-        sortNo:          '1256',
+        sortNo:          '2500',
         isGuarantor:     '0',
         guarantorVolume: 0,
       },
@@ -100,6 +110,62 @@ async function main() {
     console.log(`✅  ClientAccount updated (password=${CLIENT_PASSWORD})`);
   }
 
+  // ── 2b. Upsert new TransactionCodes ─────────────────────────────────────────
+  const newCodes = [
+    {
+      transactionCode: TX_WITHDRAW,
+      nameEng: 'Client withdraws saving',
+      nameLao: 'ລູກຄ້າຖອນເງິນຝາກ',
+      debitAccNameEng: 'Cash',
+      debitAccNameLao: 'ເງິນສົດ',
+      creditAccNameEng: 'Savings Account',
+      creditAccNameLao: 'ບັນຊີເງິນຝາກ',
+      accGroup: 'S',
+    },
+    {
+      transactionCode: TX_INTEREST,
+      nameEng: 'Saving interest / profit adjustment',
+      nameLao: 'ດອກເບ້ຍ / ປັບຜົນກຳໄລເງິນຝາກ',
+      debitAccNameEng: 'Interest Expense',
+      debitAccNameLao: 'ຄ່າໃຊ້ຈ່າຍດອກເບ້ຍ',
+      creditAccNameEng: 'Savings Account',
+      creditAccNameLao: 'ບັນຊີເງິນຝາກ',
+      accGroup: 'S',
+    },
+    {
+      transactionCode: TX_PRINCIPAL,
+      nameEng: 'Client repays principal',
+      nameLao: 'ລູກຄ້າຊຳລະຕົ້ນທຶນ',
+      debitAccNameEng: 'Cash',
+      debitAccNameLao: 'ເງິນສົດ',
+      creditAccNameEng: 'Loan Account',
+      creditAccNameLao: 'ບັນຊີເງິນກູ້',
+      accGroup: 'L',
+    },
+    {
+      transactionCode: TX_INT_PAY,
+      nameEng: 'Client repays interest',
+      nameLao: 'ລູກຄ້າຊຳລະດອກເບ້ຍ',
+      debitAccNameEng: 'Cash',
+      debitAccNameLao: 'ເງິນສົດ',
+      creditAccNameEng: 'Interest Income',
+      creditAccNameLao: 'ລາຍຮັບດອກເບ້ຍ',
+      accGroup: 'L',
+    },
+  ];
+
+  for (const code of newCodes) {
+    const exists = await prisma.transactionCode.findUnique({
+      where: { transactionCode: code.transactionCode },
+    });
+    if (!exists) {
+      await prisma.transactionCode.create({ data: code });
+      console.log(`✅  TransactionCode '${code.transactionCode}' created (${code.nameLao})`);
+    } else {
+      console.log(`✅  TransactionCode '${code.transactionCode}' already exists`);
+    }
+  }
+
   // ── 3. Counterpart (cash) account ─────────────────────────────────────────
   await prisma.accounts.upsert({
     where: { accNumber: ACC_CASH2 },
@@ -125,14 +191,14 @@ async function main() {
       accNumber:      ACC_SAVINGS2,
       accLevel:       '1',
       accGroup:       'S',
-      accNameEng:     'Savings Account - Somjai',
-      accNameLao:     'ບັນຊີເງິນຝາກ - ສົມໃຈ',
+      accNameEng:     'Savings Account - Bounmy',
+      accNameLao:     'ບັນຊີເງິນຝາກ - ບຸນມີ',
       bankbookNumber: CLIENT_BANKBOOK,
       accTypeId:      ACC_TYPE_SAVINGS,
-      currentBalance: BigInt(18_500_000),
+      currentBalance: BigInt(14_700_000),
       statusId:       STATUS_ACTIVE,
       vbCode:         VB_CODE,
-      openingDate:    new Date('2022-06-01'),
+      openingDate:    new Date('2023-01-01'),
     },
   });
   console.log(`✅  Savings account: ${ACC_SAVINGS2}`);
@@ -145,14 +211,14 @@ async function main() {
       accNumber:      ACC_LOAN2,
       accLevel:       '1',
       accGroup:       'L',
-      accNameEng:     'Loan Account - Somjai',
-      accNameLao:     'ບັນຊີເງິນກູ້ - ສົມໃຈ',
+      accNameEng:     'Loan Account - Bounmy',
+      accNameLao:     'ບັນຊີເງິນກູ້ - ບຸນມີ',
       bankbookNumber: CLIENT_BANKBOOK,
       accTypeId:      ACC_TYPE_LOAN,
-      currentBalance: BigInt(25_000_000),
+      currentBalance: BigInt(20_000_000),
       statusId:       STATUS_ACTIVE,
       vbCode:         VB_CODE,
-      openingDate:    new Date('2023-06-01'),
+      openingDate:    new Date('2023-03-01'),
     },
   });
   console.log(`✅  Loan account: ${ACC_LOAN2}`);
@@ -193,13 +259,13 @@ async function main() {
         vbcode, status_id, client_loan_int_rate,
         monthly_interest_due, monthly_principal_due
       ) VALUES (
-        '2023-06-01', ${ACC_LOAN2}, 'N', ${LOAN_RULE_ID},
-        ${REPAYMENT_TYPE_ID}, '2023-06-01', 24, '2025-06-01',
-        40000000, 25000000, 800000, 4800000,
-        0, 1500000, 15000000, 0,
+        '2023-03-01', ${ACC_LOAN2}, 'N', ${LOAN_RULE_ID},
+        ${REPAYMENT_TYPE_ID}, '2023-03-01', 36, '2026-03-01',
+        45000000, 20000000, 675000, 8100000,
+        0, 1250000, 25000000, 0,
         0, 0, 'N',
         ${VB_CODE}, ${STATUS_ACTIVE}, 1.5,
-        375000, 1666667
+        337500, 1250000
       )
     `;
     console.log(`✅  ClientLoanArrangement`);
@@ -207,8 +273,7 @@ async function main() {
     console.log(`✅  ClientLoanArrangement (already exists)`);
   }
 
-  // ── 8. Transactions (20 items across 2024-2025) ───────────────────────────
-  // Delete old seed transactions first (idempotent)
+  // ── 8. Transactions (30 items across 2023-2025) ───────────────────────────
   await prisma.transactions.deleteMany({
     where: {
       debitAccNumber: { in: [ACC_SAVINGS2, ACC_LOAN2] },
@@ -217,33 +282,61 @@ async function main() {
   });
 
   const txData: { date: Date; acc: string; code: string; amount: bigint; desc: string }[] = [
-    // ── ເງິນຝາກ (Savings) — 12 transactions ──────────────────────────────────
-    { date: new Date('2024-01-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ມັງກອນ 2024' },
-    { date: new Date('2024-02-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ກຸມພາ 2024' },
-    { date: new Date('2024-03-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ມີນາ 2024' },
-    { date: new Date('2024-04-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_500_000), desc: 'ຝາກເງິນລາຍເດືອນ ເມສາ 2024' },
-    { date: new Date('2024-05-15'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ພຶດສະພາ 2024' },
-    { date: new Date('2024-06-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(3_000_000), desc: 'ຝາກເງິນໂບນັດ ມິຖຸນາ 2024' },
-    { date: new Date('2024-07-20'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(1_500_000), desc: 'ຖອນເງິນ ກໍລະກົດ 2024' },
-    { date: new Date('2024-09-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ກັນຍາ 2024' },
-    { date: new Date('2024-11-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ພະຈິກ 2024' },
-    { date: new Date('2024-12-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(3_500_000), desc: 'ຝາກເງິນໂບນັດທ້າຍປີ 2024' },
-    { date: new Date('2025-02-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ກຸມພາ 2025' },
-    { date: new Date('2025-04-10'), acc: ACC_SAVINGS2, code: TX_CODE_DEPOSIT,  amount: BigInt(2_000_000), desc: 'ຝາກເງິນລາຍເດືອນ ເມສາ 2025' },
+    // ════════════════════════════════════════════════
+    // ບັນຊີເງິນຝາກ — 18 transactions
+    // ════════════════════════════════════════════════
 
-    // ── ເງິນກູ້ (Loan) — 8 transactions ──────────────────────────────────────
-    { date: new Date('2023-06-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_DIS, amount: BigInt(40_000_000), desc: 'ປ່ອຍກູ້ໃຫ້ລູກຄ້າ ສົມໃຈ' },
-    { date: new Date('2024-03-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 1 (ມີນາ 2024)' },
-    { date: new Date('2024-06-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 2 (ມິຖຸນາ 2024)' },
-    { date: new Date('2024-09-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 3 (ກັນຍາ 2024)' },
-    { date: new Date('2024-12-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 4 (ທັນວາ 2024)' },
-    { date: new Date('2025-03-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 5 (ມີນາ 2025)' },
-    { date: new Date('2025-04-15'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 6 (ເມສາ 2025)' },
-    { date: new Date('2025-05-01'), acc: ACC_LOAN2,    code: TX_CODE_LOAN_PAY, amount: BigInt(2_041_667),  desc: 'ຊຳລະໜີ້ ງວດທີ 7 (ພຶດສະພາ 2025)' },
+    // ── ເງິນຝາກ (2201) ──────────────────────────────
+    { date: new Date('2023-02-01'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(3_000_000), desc: 'ຝາກເງິນເປີດບັນຊີ' },
+    { date: new Date('2023-05-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_000_000), desc: 'ຝາກເງິນ ພຶດສະພາ 2023' },
+    { date: new Date('2023-09-15'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_500_000), desc: 'ຝາກເງິນ ກັນຍາ 2023' },
+    { date: new Date('2023-12-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(3_000_000), desc: 'ຝາກເງິນໂບນັດ ທັນວາ 2023' },
+    { date: new Date('2024-02-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_000_000), desc: 'ຝາກເງິນ ກຸມພາ 2024' },
+    { date: new Date('2024-05-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_000_000), desc: 'ຝາກເງິນ ພຶດສະພາ 2024' },
+    { date: new Date('2024-08-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_500_000), desc: 'ຝາກເງິນ ສິງຫາ 2024' },
+    { date: new Date('2024-11-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_000_000), desc: 'ຝາກເງິນ ພະຈິກ 2024' },
+    { date: new Date('2025-02-10'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_000_000), desc: 'ຝາກເງິນ ກຸມພາ 2025' },
+    { date: new Date('2025-05-05'), acc: ACC_SAVINGS2, code: TX_DEPOSIT,   amount: BigInt(2_000_000), desc: 'ຝາກເງິນ ພຶດສະພາ 2025' },
+
+    // ── ເງິນຖອນ (2202) ──────────────────────────────
+    { date: new Date('2023-07-20'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(500_000),   desc: 'ຖອນເງິນຄ່າໃຊ້ຈ່າຍ ກໍລະກົດ 2023' },
+    { date: new Date('2024-01-15'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(1_000_000), desc: 'ຖອນເງິນບຸນປີໃໝ່ 2024' },
+    { date: new Date('2024-04-18'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(800_000),   desc: 'ຖອນເງິນຄ່າໃຊ້ຈ່າຍ ເມສາ 2024' },
+    { date: new Date('2024-10-05'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(1_500_000), desc: 'ຖອນເງິນສຸກເສີນ ຕຸລາ 2024' },
+    { date: new Date('2025-01-10'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(1_000_000), desc: 'ຖອນເງິນ ມັງກອນ 2025' },
+
+    // ── ເງິນປັບຜົນ / ດອກເບ້ຍ (2203) ────────────────
+    { date: new Date('2023-12-31'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(312_500),   desc: 'ດອກເບ້ຍເງິນຝາກ ປີ 2023' },
+    { date: new Date('2024-06-30'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(281_250),   desc: 'ປັບຜົນດອກເບ້ຍ ຄຶ່ງປີ 2024' },
+    { date: new Date('2024-12-31'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(325_000),   desc: 'ດອກເບ້ຍເງິນຝາກ ປີ 2024' },
+
+    // ════════════════════════════════════════════════
+    // ບັນຊີເງິນກູ້ — 12 transactions
+    // ════════════════════════════════════════════════
+
+    // ── ປ່ອຍກູ້ (1201) ──────────────────────────────
+    // { date: new Date('2023-03-01'), acc: ACC_LOAN2,    code: TX_LOAN_DIS,  amount: BigInt(45_000_000), desc: 'ປ່ອຍກູ້ໃຫ້ ບຸນມີ ສີທັດ' },
+
+    // ── ຊຳລະຕົ້ນທຶນ (1011) ──────────────────────────
+    { date: new Date('2023-09-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 1' },
+    { date: new Date('2023-12-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 2' },
+    { date: new Date('2024-03-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 3' },
+    { date: new Date('2024-06-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 4' },
+    { date: new Date('2024-09-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 5' },
+    { date: new Date('2024-12-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 6' },
+    { date: new Date('2025-03-01'), acc: ACC_LOAN2,    code: TX_PRINCIPAL, amount: BigInt(1_250_000),  desc: 'ຊຳລະຕົ້ນທຶນ ງວດທີ 7' },
+
+    // ── ຊຳລະດອກເບ້ຍ (1012) ──────────────────────────
+    { date: new Date('2023-09-01'), acc: ACC_LOAN2,    code: TX_INT_PAY,   amount: BigInt(337_500),    desc: 'ຊຳລະດອກເບ້ຍ ງວດທີ 1' },
+    { date: new Date('2023-12-01'), acc: ACC_LOAN2,    code: TX_INT_PAY,   amount: BigInt(337_500),    desc: 'ຊຳລະດອກເບ້ຍ ງວດທີ 2' },
+    { date: new Date('2024-03-01'), acc: ACC_LOAN2,    code: TX_INT_PAY,   amount: BigInt(337_500),    desc: 'ຊຳລະດອກເບ້ຍ ງວດທີ 3' },
+    { date: new Date('2024-06-01'), acc: ACC_LOAN2,    code: TX_INT_PAY,   amount: BigInt(337_500),    desc: 'ຊຳລະດອກເບ້ຍ ງວດທີ 4' },
+    { date: new Date('2024-09-01'), acc: ACC_LOAN2,    code: TX_INT_PAY,   amount: BigInt(337_500),    desc: 'ຊຳລະດອກເບ້ຍ ງວດທີ 5' },
   ];
 
   let count = 0;
   for (const tx of txData) {
+    const creditAcc = tx.acc === ACC_SAVINGS2 ? ACC_CASH2 : ACC_SAVINGS2;
     await prisma.transactions.create({
       data: {
         id:                randomUUID(),
@@ -251,7 +344,7 @@ async function main() {
         transactionCodeId: tx.code,
         amount:            tx.amount,
         debitAccNumber:    tx.acc,
-        creditAccNumber:   tx.acc === ACC_SAVINGS2 ? ACC_LOAN2 : ACC_SAVINGS2,
+        creditAccNumber:   creditAcc,
         vbCode:            VB_CODE,
         description:       tx.desc,
         userId:            'seed-client2',
@@ -263,12 +356,11 @@ async function main() {
 
   console.log('\n🎉  Seed complete!');
   console.log('─────────────────────────────────────────────');
-  console.log('  Client Login:');
-  console.log(`    bankbookNumber : ${CLIENT_BANKBOOK}`);
-  console.log(`    password       : ${CLIENT_PASSWORD}`);
-  console.log('  Accounts:');
-  console.log(`    ເງິນຝາກ (Savings) : ${ACC_SAVINGS2}`);
-  console.log(`    ເງິນກູ້  (Loan)    : ${ACC_LOAN2}`);
+  console.log('  Client:  ບຸນມີ ສີທັດ / Bounmy Sithad');
+  console.log(`  Login:   bankbookNumber=${CLIENT_BANKBOOK}  password=${CLIENT_PASSWORD}`);
+  console.log(`  ເງິນຝາກ : ${ACC_SAVINGS2}`);
+  console.log(`  ເງິນກູ້  : ${ACC_LOAN2}`);
+  console.log('  TX codes: 2201=ຝາກ  2202=ຖອນ  2203=ປັບຜົນ  1011=ຕົ້ນທຶນ  1012=ດອກເບ້ຍ  1201=ປ່ອຍກູ້');
   console.log('─────────────────────────────────────────────');
 }
 

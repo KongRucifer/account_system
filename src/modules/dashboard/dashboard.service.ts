@@ -14,22 +14,12 @@ export interface AccountDashboardSummary {
     vbName: string | null;
     openingDate: Date | null;
     status: string;
-    owners: Array<{
-      clientId: string;
-      clientName: string;
-      bankbookNumber: string;
-      phoneNumber: string | null;
-      gender: string | null;
-      birthDate: Date | null;
-      clientType: string;
-    }>;
   };
   loan: {
     id: number;
     totalLoanAmount: number;
     loanOutstanding: number;
     interestDue: number;
-    interestPaid: number;
     principalDue: number;
     principalPaid: number;
     startDate: Date;
@@ -47,13 +37,13 @@ export interface AccountDashboardSummary {
     interestNumerator: number;
     date: Date;
   } | null;
-  financialSummary: {
-    currentBalance: number;
-    totalLoanAmount: number;
-    loanOutstanding: number;
-    savingsBalance: number;
-    netPosition: number;
-  };
+  // financialSummary: {
+  //   currentBalance: number;
+  //   totalLoanAmount: number;
+  //   loanOutstanding: number;
+  //   savingsBalance: number;
+  //   netPosition: number;
+  // };
 }
 
 export interface AccountYearlySummary {
@@ -96,23 +86,6 @@ export class DashboardService {
       include: {
         vb: true,
         accountType: true,
-        accountOwners: {
-          include: {
-            client: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                nickName: true,
-                phoneNumber: true,
-                genderLao: true,
-                genderEng: true,
-                birthDate: true,
-                clientType: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -153,17 +126,6 @@ export class DashboardService {
         vbName: account.vb?.nameLao || account.vb?.nameEng || null,
         openingDate: account.openingDate,
         status: account.statusId,
-        owners: account.accountOwners.map((ao) => ({
-          clientId: ao.clientId,
-          clientName: ao.client?.nickName ||
-            `${ao.client?.firstName || ''} ${ao.client?.lastName || ''}`.trim() ||
-            'Unknown',
-          bankbookNumber: ao.bankbookNumber,
-          phoneNumber: ao.client?.phoneNumber || null,
-          gender: ao.client?.genderLao || ao.client?.genderEng || null,
-          birthDate: ao.client?.birthDate || null,
-          clientType: ao.client?.clientType || '',
-        })),
       },
       loan: loan
         ? {
@@ -171,7 +133,6 @@ export class DashboardService {
             totalLoanAmount: Number(loan.totalLoanAmount),
             loanOutstanding,
             interestDue: Number(loan.interestDue),
-            interestPaid: Number(loan.interestPaid),
             principalDue: Number(loan.principalDue),
             principalPaid: Number(loan.principalPaid),
             startDate: loan.startDate,
@@ -192,13 +153,13 @@ export class DashboardService {
             date: savings.date,
           }
         : null,
-      financialSummary: {
-        currentBalance,
-        totalLoanAmount,
-        loanOutstanding,
-        savingsBalance,
-        netPosition: currentBalance + savingsBalance - loanOutstanding,
-      },
+      // financialSummary: {
+      //   currentBalance,
+      //   totalLoanAmount,
+      //   loanOutstanding,
+      //   savingsBalance,
+      //   netPosition: currentBalance + savingsBalance - loanOutstanding,
+      // },
     };
   }
 

@@ -50,12 +50,14 @@ export class TransactionsService {
     return tx;
   }
 
-  async findByAccount(accountId: string, paginationDto: PaginationDto): Promise<PaginatedResult<any>> {
+  async findByAccount(accountId: string, paginationDto: PaginationDto, txCode?: string): Promise<PaginatedResult<any>> {
     const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+    const where: any = { debitAccNumber: accountId };
+    if (txCode) where.transactionCodeId = txCode;
 
     const [transactions, total] = await Promise.all([
       this.prisma.transactions.findMany({
-        where: { debitAccNumber: accountId },
+        where,
         skip,
         take,
         include: {
@@ -64,7 +66,7 @@ export class TransactionsService {
         },
         orderBy: { date: paginationDto.sort || 'desc' },
       }),
-      this.prisma.transactions.count({ where: { debitAccNumber: accountId } }),
+      this.prisma.transactions.count({ where }),
     ]);
 
     const pagination = calculatePagination(total, page, limit);
@@ -104,17 +106,20 @@ export class TransactionsService {
     accountId: string,
     year: number,
     paginationDto: PaginationDto,
+    txCode?: string,
   ): Promise<PaginatedResult<any>> {
     const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
     const startDate = new Date(`${year}-01-01`);
     const endDate = new Date(`${year + 1}-01-01`);
+    const where: any = {
+      debitAccNumber: accountId,
+      date: { gte: startDate, lt: endDate },
+    };
+    if (txCode) where.transactionCodeId = txCode;
 
     const [transactions, total] = await Promise.all([
       this.prisma.transactions.findMany({
-        where: {
-          debitAccNumber: accountId,
-          date: { gte: startDate, lt: endDate },
-        },
+        where,
         skip,
         take,
         include: {
@@ -129,12 +134,7 @@ export class TransactionsService {
         },
         orderBy: { date: paginationDto.sort || 'desc' },
       }),
-      this.prisma.transactions.count({
-        where: {
-          debitAccNumber: accountId,
-          date: { gte: startDate, lt: endDate },
-        },
-      }),
+      this.prisma.transactions.count({ where }),
     ]);
 
     const pagination = calculatePagination(total, page, limit);
