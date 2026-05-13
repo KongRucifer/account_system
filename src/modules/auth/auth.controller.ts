@@ -4,6 +4,8 @@ import type { Request, Response } from 'express';
 import { AuthService, TokenResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('1. Auth')
 @Controller('auth')
@@ -54,6 +56,29 @@ export class AuthController {
     this.setTokenCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
     
     return result;
+  }
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register — create new client account' })
+  @ApiResponse({ status: 201, description: 'Registration successful' })
+  @ApiResponse({ status: 400, description: 'Invalid input or validation failed' })
+  @ApiResponse({ status: 409, description: 'Account already exists' })
+  async register(
+    @Body() registerDto: RegisterDto,
+  ): Promise<{ message: string; clientId?: string }> {
+    return this.authService.register(registerDto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password — update password using phone number' })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 400, description: 'Phone number not found or account not found' })
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword(resetPasswordDto.phoneNumber, resetPasswordDto.newPassword);
   }
 
   @Post('logout')

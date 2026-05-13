@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RegisterDto } from './dto/register.dto';
 
 export interface TokenResponse {
   accessToken: string;
@@ -54,7 +55,7 @@ export class AuthService {
     });
 
     if (!client || !client.clientAccount) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('bank book number is incorrect');
     }
 
     // 2. Verify password against client_account
@@ -63,7 +64,7 @@ export class AuthService {
       client.clientAccount.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('password is incorrect');
     }
 
     // 3. Revoke all existing refresh tokens for this client (optional - for single session)
@@ -72,6 +73,120 @@ export class AuthService {
     // 4. Generate tokens
     return this.generateTokens(client, client.clientAccount.clientId, ipAddress, userAgent);
   }
+
+  async register(registerDto: RegisterDto): Promise<{ message: string; clientId?: string }> {
+    const { bankbookNumber, password, confirmPassword, phoneNumber, vbCode } = registerDto;
+
+    // 1. Check password match
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Password and confirm password do not match');
+    }
+
+    // 2. Check if Client exists with phoneNumber, vbCode, and bankbookNumber
+    const client = await this.prisma.client.findFirst({
+      where: {
+        phoneNumber: phoneNumber,
+        vbCode: vbCode,
+        bankbookNumber: bankbookNumber,
+      },
+      select: {
+        id: true,
+        phoneNumber: true,
+        vbCode: true,
+        bankbookNumber: true,
+      },
+    });
+
+    if (!client) {
+      throw new BadRequestException('Invalid phone number, village code, or bankbook number');
+    }
+
+    const clientId = client.id;
+
+    // 3. Check if ClientAccount already exists with this clientId
+    const existingClientAccount = await this.prisma.clientAccount.findUnique({
+      where: {
+        clientId: clientId,
+      },
+      select: {
+        id: true,
+        password: true,
+        vbCode: true,
+      },
+    });
+
+    if (existingClientAccount) {
+      // Check if it has password already
+      throw new ConflictException('You already have an account. Please login.');
+    }
+
+    // 4. Hash password and create ClientAccount
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await this.prisma.clientAccount.create({
+      data: {
+        clientId: clientId,
+        vbCode: vbCode,
+        password: hashedPassword,
+      },
+    });
+
+    return {
+      message: 'Registration successful. You can now login.',
+      clientId: clientId,
+    };
+  }
+
+  async resetPassword(phoneNumber: string, newPassword: string): Promise<{ message: string }> {
+    // 1. Find client by phoneNumber
+    const client = await this.prisma.client.findFirst({
+      where: { phoneNumber: phoneNumber },
+      select: {
+        id: true,
+        phoneNumber: true,
+      },
+    });
+
+    if (!client) {
+      throw new BadRequestException('Phone number not found');
+    }
+
+    // 2. Find ClientAccount by clientId
+    const clientAccount = await this.prisma.clientAccount.findUnique({
+      where: { clientId: client.id },
+      select: {
+        id: true,
+        clientId: true,
+      },
+    });
+
+    if (!clientAccount) {
+      throw new BadRequestException('Account not found for this phone number');
+    }
+
+    // 3. Hash new password and update
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.clientAccount.update({
+      where: { clientId: client.id },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    return {
+      message: 'Password reset successful. You can now login with your new password.',
+    };
+  }
+//   ✅ Response Success (200)
+// json
+// {
+//   "message": "Password reset successful. You can now login with your new password."
+// }
+// ❌ Error Cases
+// Error	Status	Message
+// ไม่มีเบอร์โทรศัพท์นี้	400	"Phone number not found"
+// ไม่มี account สำหรับเบอร์นี้	400	"Account not found for this phone number"
 
   async refresh(refreshTokenDto: RefreshTokenDto, ipAddress?: string, userAgent?: string): Promise<TokenResponse> {
     const { refreshToken } = refreshTokenDto;
