@@ -103,3 +103,36 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 UPDATE system_user 
 SET password = '$2b$10$I6lvaLCLctvTKeiU3jCVmO42a.kza9R6DwUxqqrdMbsmyXEa6VXJ2'
 WHERE user_name = 'DEV';
+
+
+
+pls make this create table 
+
+-- 1. ลบ refresh_token ก่อน (มี FK ชี้มาที่ client_account)
+DELETE FROM refresh_token;
+ALTER TABLE refresh_token DROP COLUMN IF EXISTS client_id;
+ALTER TABLE refresh_token ADD COLUMN IF NOT EXISTS bankbooknumber VARCHAR(5);
+ALTER TABLE refresh_token ADD COLUMN IF NOT EXISTS vbcode VARCHAR(7);
+
+-- 2. ลบตาราง client_account เดิม
+DROP TABLE IF EXISTS client_account;
+
+-- 3. สร้างตาราง client_account ใหม่
+CREATE TABLE client_account (
+    bankbooknumber  VARCHAR(5)   NOT NULL,
+    vbcode          VARCHAR(7)   NOT NULL,
+    username        VARCHAR(50)  NOT NULL,
+    phone_number    VARCHAR(12)  NULL,
+    password        TEXT         NOT NULL,
+    PRIMARY KEY (bankbooknumber, vbcode),
+    CONSTRAINT client_account_username_key UNIQUE (username),
+    CONSTRAINT client_account_vbcode_fkey FOREIGN KEY (vbcode)
+        REFERENCES vbcode(id)
+);
+
+-- 4. เพิ่ม FK ที่ refresh_token ชี้มาที่ client_account ใหม่
+ALTER TABLE refresh_token
+    ADD CONSTRAINT refresh_token_bankbooknumber_vbcode_fkey
+    FOREIGN KEY (bankbooknumber, vbcode)
+    REFERENCES client_account(bankbooknumber, vbcode)
+    ON DELETE CASCADE;

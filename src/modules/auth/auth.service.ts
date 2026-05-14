@@ -13,14 +13,14 @@ export interface TokenResponse {
   tokenType: string;
   expiresIn: number;
   expiresAt: Date;
-  client: {
+  clients: {
     id: string;
     bankbookNumber: string | null;
     firstName: string | null;
     lastName: string | null;
     nickName: string;
     vbCode: string;
-  };
+  }[];
 }
 
 @Injectable()
@@ -34,9 +34,27 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto, ipAddress?: string, userAgent?: string): Promise<TokenResponse> {
-    // 1. Find client by bankbookNumber
-    const client = await this.prisma.client.findFirst({
-      where: { bankbookNumber: loginDto.bankbookNumber },
+    // 1. Find clientAccount by username
+    const clientAccount = await this.prisma.clientAccount.findUnique({
+      where: { username: loginDto.username },
+    });
+
+    if (!clientAccount) {
+      throw new UnauthorizedException('Username is incorrect');
+    }
+
+    // 2. Verify password
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      clientAccount.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Password is incorrect');
+    }
+
+    // 3. Find all clients sharing this bankbookNumber
+    const clients = await this.prisma.client.findMany({
+      where: { bankbookNumber: clientAccount.bankbookNumber, vbCode: clientAccount.vbCode },
       select: {
         id: true,
         bankbookNumber: true,
@@ -44,131 +62,102 @@ export class AuthService {
         lastName: true,
         nickName: true,
         vbCode: true,
-        clientAccount: {
-          select: { 
-            id: true,
-            password: true,
-            clientId: true,
-          },
-        },
       },
     });
 
-    if (!client || !client.clientAccount) {
-      throw new UnauthorizedException('bank book number is incorrect');
-    }
+    // 4. Revoke all existing refresh tokens for this bankbookNumber+vbCode
+    await this.revokeAllUserRefreshTokens(clientAccount.bankbookNumber, clientAccount.vbCode);
 
-    // 2. Verify password against client_account
-    const isPasswordValid = await bcrypt.compare(
-      loginDto.password,
-      client.clientAccount.password,
-    );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('password is incorrect');
-    }
-
-    // 3. Revoke all existing refresh tokens for this client (optional - for single session)
-    await this.revokeAllUserRefreshTokens(client.clientAccount.clientId);
-
-    // 4. Generate tokens
-    return this.generateTokens(client, client.clientAccount.clientId, ipAddress, userAgent);
+    // 5. Generate 1 token bound to bankbookNumber
+    return this.generateTokens(clientAccount.bankbookNumber, clientAccount.vbCode, clients, ipAddress, userAgent);
   }
 
-  async register(registerDto: RegisterDto): Promise<{ message: string; clientId?: string }> {
-    const { bankbookNumber, password, confirmPassword, phoneNumber, vbCode } = registerDto;
+  async register(registerDto: RegisterDto): Promise<{ message: string }> {
+    const { bankbookNumber, password, confirmPassword, vbCode, username, phoneNumber } = registerDto;
 
     // 1. Check password match
     if (password !== confirmPassword) {
       throw new BadRequestException('Password and confirm password do not match');
     }
 
-    // 2. Check if Client exists with phoneNumber, vbCode, and bankbookNumber
+    // 2. Check if any Client exists with vbCode + bankbookNumber
     const client = await this.prisma.client.findFirst({
       where: {
-        phoneNumber: phoneNumber,
         vbCode: vbCode,
         bankbookNumber: bankbookNumber,
       },
       select: {
         id: true,
-        phoneNumber: true,
         vbCode: true,
         bankbookNumber: true,
       },
     });
-
+    console.log("client", client);
     if (!client) {
-      throw new BadRequestException('Invalid phone number, village code, or bankbook number');
+      throw new BadRequestException('Invalid village code or bankbook number');
     }
 
-    const clientId = client.id;
+    // 3. Check if username is already taken
+    const existingUsername = await this.prisma.clientAccount.findUnique({
+      where: { username: username },
+    });
 
-    // 3. Check if ClientAccount already exists with this clientId
+    if (existingUsername) {
+      throw new ConflictException('Username is already taken. Please choose another.');
+    }
+
+    // 4. Check if ClientAccount already exists with bankbookNumber + vbCode
     const existingClientAccount = await this.prisma.clientAccount.findUnique({
       where: {
-        clientId: clientId,
-      },
-      select: {
-        id: true,
-        password: true,
-        vbCode: true,
+        bankbookNumber_vbCode: {
+          bankbookNumber: bankbookNumber,
+          vbCode: vbCode,
+        },
       },
     });
 
     if (existingClientAccount) {
-      // Check if it has password already
       throw new ConflictException('You already have an account. Please login.');
     }
 
-    // 4. Hash password and create ClientAccount
+    // 5. Hash password and create ClientAccount
     const hashedPassword = await bcrypt.hash(password, 10);
 
     await this.prisma.clientAccount.create({
       data: {
-        clientId: clientId,
+        bankbookNumber: bankbookNumber,
         vbCode: vbCode,
+        username: username,
+        phoneNumber: phoneNumber,
         password: hashedPassword,
       },
     });
 
     return {
       message: 'Registration successful. You can now login.',
-      clientId: clientId,
     };
   }
 
   async resetPassword(phoneNumber: string, newPassword: string): Promise<{ message: string }> {
-    // 1. Find client by phoneNumber
-    const client = await this.prisma.client.findFirst({
+    // 1. Find ClientAccount by phoneNumber
+    const clientAccount = await this.prisma.clientAccount.findFirst({
       where: { phoneNumber: phoneNumber },
-      select: {
-        id: true,
-        phoneNumber: true,
-      },
-    });
-
-    if (!client) {
-      throw new BadRequestException('Phone number not found');
-    }
-
-    // 2. Find ClientAccount by clientId
-    const clientAccount = await this.prisma.clientAccount.findUnique({
-      where: { clientId: client.id },
-      select: {
-        id: true,
-        clientId: true,
-      },
     });
 
     if (!clientAccount) {
-      throw new BadRequestException('Account not found for this phone number');
+      throw new BadRequestException('No account found for this phone number');
     }
 
-    // 3. Hash new password and update
+    // 2. Hash new password and update
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await this.prisma.clientAccount.update({
-      where: { clientId: client.id },
+      where: {
+        bankbookNumber_vbCode: {
+          bankbookNumber: clientAccount.bankbookNumber,
+          vbCode: clientAccount.vbCode,
+        },
+      },
       data: {
         password: hashedPassword,
       },
@@ -195,20 +184,7 @@ export class AuthService {
     const storedToken = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
       include: {
-        clientAccount: {
-          include: {
-            client: {
-              select: {
-                id: true,
-                bankbookNumber: true,
-                firstName: true,
-                lastName: true,
-                nickName: true,
-                vbCode: true,
-              },
-            },
-          },
-        },
+        clientAccount: true,
       },
     });
 
@@ -222,7 +198,6 @@ export class AuthService {
     }
 
     if (new Date() > storedToken.expiresAt) {
-      // Token expired - revoke it
       await this.revokeRefreshToken(storedToken.id);
       throw new UnauthorizedException('Refresh token has expired');
     }
@@ -230,9 +205,21 @@ export class AuthService {
     // 3. Revoke the old refresh token (token rotation for security)
     await this.revokeRefreshToken(storedToken.id);
 
-    // 4. Generate new tokens
-    const client = storedToken.clientAccount.client;
-    return this.generateTokens(client, storedToken.clientId, ipAddress, userAgent);
+    // 4. Find all clients for this bankbookNumber
+    const clients = await this.prisma.client.findMany({
+      where: { bankbookNumber: storedToken.bankbookNumber },
+      select: {
+        id: true,
+        bankbookNumber: true,
+        firstName: true,
+        lastName: true,
+        nickName: true,
+        vbCode: true,
+      },
+    });
+
+    // 5. Generate new tokens
+    return this.generateTokens(storedToken.bankbookNumber, storedToken.vbCode, clients, ipAddress, userAgent);
   }
 
   async logout(refreshToken: string): Promise<void> {
@@ -245,21 +232,21 @@ export class AuthService {
     }
   }
 
-  async logoutAll(clientId: string): Promise<void> {
-    await this.revokeAllUserRefreshTokens(clientId);
+  async logoutAll(bankbookNumber: string, vbCode: string): Promise<void> {
+    await this.revokeAllUserRefreshTokens(bankbookNumber, vbCode);
   }
 
   private async generateTokens(
-    client: any, 
-    clientId: string, 
-    ipAddress?: string, 
+    bankbookNumber: string,
+    vbCode: string,
+    clients: any[],
+    ipAddress?: string,
     userAgent?: string
   ): Promise<TokenResponse> {
-    // 1. Generate access token payload
+    // 1. Generate access token payload (sub = bankbookNumber)
     const payload = {
-      sub: client.id,
-      bankbookNumber: client.bankbookNumber,
-      vbCode: client.vbCode,
+      sub: bankbookNumber,
+      vbCode: vbCode,
       type: 'access',
     };
 
@@ -280,7 +267,8 @@ export class AuthService {
     // 5. Store refresh token in database
     await this.prisma.refreshToken.create({
       data: {
-        clientId,
+        bankbookNumber,
+        vbCode,
         token: refreshToken,
         expiresAt: refreshTokenExpiresAt,
         ipAddress,
@@ -294,14 +282,14 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn,
       expiresAt,
-      client: {
-        id: client.id,
-        bankbookNumber: client.bankbookNumber,
-        firstName: client.firstName,
-        lastName: client.lastName,
-        nickName: client.nickName,
-        vbCode: client.vbCode,
-      },
+      clients: clients.map((c) => ({
+        id: c.id,
+        bankbookNumber: c.bankbookNumber,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        nickName: c.nickName,
+        vbCode: c.vbCode,
+      })),
     };
   }
 
@@ -319,10 +307,11 @@ export class AuthService {
     });
   }
 
-  private async revokeAllUserRefreshTokens(clientId: string): Promise<void> {
+  private async revokeAllUserRefreshTokens(bankbookNumber: string, vbCode: string): Promise<void> {
     await this.prisma.refreshToken.updateMany({
       where: {
-        clientId,
+        bankbookNumber,
+        vbCode,
         isRevoked: false,
       },
       data: {

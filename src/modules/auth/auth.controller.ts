@@ -21,7 +21,7 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<TokenResponse> {
+  ): Promise<TokenResponse> { // clients is now an array in TokenResponse
     const ipAddress = this.getClientIp(req);
     const result = await this.authService.login(loginDto, ipAddress);
     

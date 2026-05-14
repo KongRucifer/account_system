@@ -3,14 +3,18 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, PaginatedResult, createPaginatedResponse, calculatePagination } from '../../common/dto/pagination.dto';
 import { getPrismaPagination } from '../../common/utils/prisma-pagination.util';
 
+const ALLOWED_TX_CODES = ['1006', '3101', '6410', '1010', '1001', '1201'];
+
 @Injectable()
 export class TransactionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByAccount(accountId: string, paginationDto: PaginationDto, txCode?: string): Promise<PaginatedResult<any>> {
     const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
-    const where: any = { debitAccNumber: accountId };
-    if (txCode) where.transactionCodeId = txCode;
+    const where: any = {
+      debitAccNumber: accountId,
+      transactionCodeId: txCode ? txCode : { in: ALLOWED_TX_CODES },
+    };
 
     const [transactions, total] = await Promise.all([
       this.prisma.transactions.findMany({
@@ -42,8 +46,8 @@ export class TransactionsService {
     const where: any = {
       debitAccNumber: accountId,
       date: { gte: startDate, lt: endDate },
+      transactionCodeId: txCode ? txCode : { in: ALLOWED_TX_CODES },
     };
-    if (txCode) where.transactionCodeId = txCode;
 
     const [transactions, total] = await Promise.all([
       this.prisma.transactions.findMany({

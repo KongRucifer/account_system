@@ -24,8 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     return {
-      clientId: payload.sub,
-      bankbookNumber: payload.bankbookNumber,
+      bankbookNumber: payload.sub,
       vbCode: payload.vbCode,
     };
   }
