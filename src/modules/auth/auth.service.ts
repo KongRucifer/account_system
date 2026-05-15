@@ -13,6 +13,7 @@ export interface TokenResponse {
   tokenType: string;
   expiresIn: number;
   expiresAt: Date;
+  username: string;
   clients: {
     id: string;
     bankbookNumber: string | null;
@@ -69,7 +70,7 @@ export class AuthService {
     await this.revokeAllUserRefreshTokens(clientAccount.bankbookNumber, clientAccount.vbCode);
 
     // 5. Generate 1 token bound to bankbookNumber
-    return this.generateTokens(clientAccount.bankbookNumber, clientAccount.vbCode, clients, ipAddress, userAgent);
+    return this.generateTokens(clientAccount.bankbookNumber, clientAccount.vbCode, clientAccount.username, clients, ipAddress, userAgent);
   }
 
   async register(registerDto: RegisterDto): Promise<{ message: string }> {
@@ -219,7 +220,7 @@ export class AuthService {
     });
 
     // 5. Generate new tokens
-    return this.generateTokens(storedToken.bankbookNumber, storedToken.vbCode, clients, ipAddress, userAgent);
+    return this.generateTokens(storedToken.bankbookNumber, storedToken.vbCode, storedToken.clientAccount.username, clients, ipAddress, userAgent);
   }
 
   async logout(refreshToken: string): Promise<void> {
@@ -239,6 +240,7 @@ export class AuthService {
   private async generateTokens(
     bankbookNumber: string,
     vbCode: string,
+    username: string,
     clients: any[],
     ipAddress?: string,
     userAgent?: string
@@ -282,6 +284,7 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn,
       expiresAt,
+      username,
       clients: clients.map((c) => ({
         id: c.id,
         bankbookNumber: c.bankbookNumber,
