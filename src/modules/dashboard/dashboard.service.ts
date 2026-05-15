@@ -18,6 +18,7 @@ export interface AccountDashboardSummary {
     totalLoanAmount: number;
     loanOutstanding: number;
     interestDue: number;
+    interestUnpaid: number;
     principalDue: number;
     principalPaid: number;
     startDate: Date;
@@ -95,6 +96,7 @@ export class DashboardService {
             totalLoanAmount: Number(loan.totalLoanAmount),
             loanOutstanding,
             interestDue: Number(loan.interestDue),
+            interestUnpaid: Number(loan.interestUnpaid),
             principalDue: Number(loan.principalDue),
             principalPaid: Number(loan.principalPaid),
             startDate: loan.startDate,

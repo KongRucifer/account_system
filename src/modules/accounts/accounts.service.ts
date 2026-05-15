@@ -37,7 +37,7 @@ export class AccountsService {
 
     const [savingsRaw, loansRaw] = await Promise.all([
       this.prisma.accounts.findMany({
-        where: { ...baseWhere, accTypeId: '9' },
+        where: { ...baseWhere, accTypeId: '9', statusId: '2' },
         select: {
           accNumber: true,
           accNameLao: true,
@@ -52,7 +52,7 @@ export class AccountsService {
         },
       }),
       this.prisma.accounts.findMany({
-        where: { ...baseWhere, accTypeId: '5' },
+        where: { ...baseWhere, accTypeId: '5', statusId: '2' },
         select: {
           accNumber: true,
           accNameLao: true,
@@ -68,6 +68,28 @@ export class AccountsService {
       }),
     ]);
 
+    const loanAccNumbers = loansRaw.map((a) => a.accNumber);
+    type LoanPurposeRow = { acc_number: string; name_eng: string; name_lao: string };
+    let loanPurposeMap: Record<string, { nameEng: string; nameLao: string }> = {};
+    if (loanAccNumbers.length > 0) {
+      const rows = await this.prisma.$queryRaw<LoanPurposeRow[]>`
+        SELECT
+          cla.acc_number,
+          clp.name_eng,
+          clp.name_lao
+        FROM client_loan_arrangement cla
+        JOIN client_loan_rule clr ON clr.id = cla.client_loan_rule_id
+        JOIN client_loan_purpose clp ON clp.id = clr.client_loan_purpose_id
+        WHERE cla.acc_number = ANY(${loanAccNumbers})
+        ORDER BY cla.id DESC
+      `;
+      for (const row of rows) {
+        if (!loanPurposeMap[row.acc_number]) {
+          loanPurposeMap[row.acc_number] = { nameEng: row.name_eng, nameLao: row.name_lao };
+        }
+      }
+    }
+
     const mapAccount = (a: {
       accNumber: string;
       accNameLao: string | null;
@@ -79,10 +101,10 @@ export class AccountsService {
       openingDate: Date;
       vb: { id: string; nameLao: string | null; nameEng: string | null } | null;
       accountType: { id: string; nameLao: string | null; nameEng: string | null } | null;
-    }) => ({
+    }, loanPurpose?: { nameEng: string; nameLao: string }) => ({
       accNumber: a.accNumber,
-      accNameLao: a.accNameLao,
-      accNameEng: a.accNameEng,
+      accNameLao: loanPurpose?.nameLao || a.accNameLao,
+      accNameEng: loanPurpose?.nameEng || a.accNameEng,
       currentBalance: Number(a.currentBalance),
       statusId: a.statusId,
       accTypeId: a.accTypeId,
@@ -111,8 +133,8 @@ export class AccountsService {
         birthDate: r.client?.birthDate ?? null,
         clientType: r.client?.clientType ?? null,
       })),
-      savingsAccounts: savingsRaw.map(mapAccount),
-      loanAccounts: loansRaw.map(mapAccount),
+      savingsAccounts: savingsRaw.map((a) => mapAccount(a)),
+      loanAccounts: loansRaw.map((a) => mapAccount(a, loanPurposeMap[a.accNumber])),
     };
   }
 }

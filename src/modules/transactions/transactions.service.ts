@@ -3,7 +3,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, PaginatedResult, createPaginatedResponse, calculatePagination } from '../../common/dto/pagination.dto';
 import { getPrismaPagination } from '../../common/utils/prisma-pagination.util';
 
-const ALLOWED_TX_CODES = ['1006', '3101', '6410', '1010', '1001', '1201'];
+const LOAN_TX_CODES = ['1201', '1010', '1001'];
+const SAVINGS_TX_CODES = ['1006', '3101', '6410'];
+const LOAN_ACC_TYPE_ID = '5';
+const SAVINGS_ACC_TYPE_ID = '9';
 
 @Injectable()
 export class TransactionsService {
@@ -11,9 +14,30 @@ export class TransactionsService {
 
   async findByAccount(accountId: string, paginationDto: PaginationDto, txCode?: string): Promise<PaginatedResult<any>> {
     const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+
+    const account = await this.prisma.accounts.findUnique({
+      where: { accNumber: accountId },
+      select: { bankbookNumber: true, vbCode: true, accTypeId: true },
+    });
+
+    if (!account || !account.bankbookNumber) {
+      const pagination = calculatePagination(0, page, limit);
+      return createPaginatedResponse([], pagination, 'Account transactions fetched successfully');
+    }
+
+    let allowedTxCodes: string[];
+    if (account.accTypeId === LOAN_ACC_TYPE_ID) {
+      allowedTxCodes = LOAN_TX_CODES;
+    } else if (account.accTypeId === SAVINGS_ACC_TYPE_ID) {
+      allowedTxCodes = SAVINGS_TX_CODES;
+    } else {
+      allowedTxCodes = [...LOAN_TX_CODES, ...SAVINGS_TX_CODES];
+    }
+
     const where: any = {
-      debitAccNumber: accountId,
-      transactionCodeId: txCode ? txCode : { in: ALLOWED_TX_CODES },
+      bankbookNumber: account.bankbookNumber,
+      vbCode: account.vbCode,
+      transactionCodeId: txCode ? txCode : { in: allowedTxCodes },
     };
 
     const [transactions, total] = await Promise.all([
@@ -41,12 +65,33 @@ export class TransactionsService {
     txCode?: string,
   ): Promise<PaginatedResult<any>> {
     const { skip, take, page, limit } = getPrismaPagination(paginationDto.page, paginationDto.limit);
+
+    const account = await this.prisma.accounts.findUnique({
+      where: { accNumber: accountId },
+      select: { bankbookNumber: true, vbCode: true, accTypeId: true },
+    });
+
+    if (!account || !account.bankbookNumber) {
+      const pagination = calculatePagination(0, page, limit);
+      return createPaginatedResponse([], pagination, 'Account year transactions fetched successfully');
+    }
+
+    let allowedTxCodes: string[];
+    if (account.accTypeId === LOAN_ACC_TYPE_ID) {
+      allowedTxCodes = LOAN_TX_CODES;
+    } else if (account.accTypeId === SAVINGS_ACC_TYPE_ID) {
+      allowedTxCodes = SAVINGS_TX_CODES;
+    } else {
+      allowedTxCodes = [...LOAN_TX_CODES, ...SAVINGS_TX_CODES];
+    }
+
     const startDate = new Date(`${year}-01-01`);
     const endDate = new Date(`${year + 1}-01-01`);
     const where: any = {
-      debitAccNumber: accountId,
+      bankbookNumber: account.bankbookNumber,
+      vbCode: account.vbCode,
       date: { gte: startDate, lt: endDate },
-      transactionCodeId: txCode ? txCode : { in: ALLOWED_TX_CODES },
+      transactionCodeId: txCode ? txCode : { in: allowedTxCodes },
     };
 
     const [transactions, total] = await Promise.all([
