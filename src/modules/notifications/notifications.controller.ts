@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common
 import { ApiBody } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { MeetingReminderCron } from './cron/meeting-reminder.cron';
+import { TestNotificationDto } from './dto/test-notification.dto';
 
 @Controller('notifications')
 export class NotificationsController {
@@ -96,22 +97,10 @@ export class NotificationsController {
 
   // Test - ส่ง notification ทันที (ไม่ต้องรอพรุ่งนี้)
   @Post('test/send-notification-now')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        vbCode: { type: 'string', example: '1004039' },
-        message: { type: 'string', example: 'ທົດສອບການແຈ້ງເຕືອນ' },
-      },
-      required: ['vbCode'],
-    },
-  })
-  async sendNotificationNow(
-    @Body('vbCode') vbCode: string,
-    @Body('message') message?: string,
-  ) {
+  @ApiBody({ type: TestNotificationDto })
+  async sendNotificationNow(@Body() dto: TestNotificationDto) {
     try {
-      if (!vbCode) {
+      if (!dto.vbCode) {
         return {
           status: 'error',
           message: 'vbCode is required in request body',
@@ -119,8 +108,8 @@ export class NotificationsController {
       }
       
       const result = await this.meetingReminderCron.testSendNotificationNow(
-        vbCode,
-        message || 'ທົດສອບການແຈ້ງເຕືອນ (Test Notification)',
+        dto.vbCode,
+        dto.message || 'ທົດສອບການແຈ້ງເຕືອນ (Test Notification)',
       );
       return {
         status: 'success',
