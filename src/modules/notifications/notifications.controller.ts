@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import { ApiBody } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { MeetingReminderCron } from './cron/meeting-reminder.cron';
 
@@ -95,6 +96,16 @@ export class NotificationsController {
 
   // Test - ส่ง notification ทันที (ไม่ต้องรอพรุ่งนี้)
   @Post('test/send-notification-now')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        vbCode: { type: 'string', example: '1004039' },
+        message: { type: 'string', example: 'ທົດສອບການແຈ້ງເຕືອນ' },
+      },
+      required: ['vbCode'],
+    },
+  })
   async sendNotificationNow(
     @Body('vbCode') vbCode: string,
     @Body('message') message?: string,
