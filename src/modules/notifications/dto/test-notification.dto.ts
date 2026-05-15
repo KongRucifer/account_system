@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional } from 'class-validator';
 
 export class TestNotificationDto {
   @ApiProperty({ 
@@ -6,6 +7,7 @@ export class TestNotificationDto {
     example: '1004039',
     required: true 
   })
+  @IsString()
   vbCode: string;
 
   @ApiProperty({ 
@@ -13,5 +15,7 @@ export class TestNotificationDto {
     example: 'ທົດສອບການແຈ້ງເຕືອນ',
     required: false 
   })
+  @IsOptional()
+  @IsString()
   message?: string;
 }
