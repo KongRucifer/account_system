@@ -124,6 +124,55 @@ export class MeetingReminderCron {
       totalClients: villageBanksWithClientCount.reduce((sum, vb) => sum + vb.clientCount, 0),
     };
   }
+
+  // สำหรับทดสอบ - ส่ง notification ทันที (ไม่ต้องรอพรุ่งนี้)
+  async testSendNotificationNow(vbCode: string, message: string) {
+    const now = new Date();
+    
+    this.logger.log(`[TEST] Sending immediate notification for vbCode: ${vbCode}`);
+
+    // สร้าง notification ทันที
+    const notification = await this.notificationsService.createMeetingNotification(
+      vbCode,
+      now,
+      message,
+    );
+
+    this.logger.log(`[TEST] Created notification: ${notification.id}`);
+
+    // หา ClientAccount ที่มี vbCode ตรงกัน
+    const clientAccounts = await this.prisma.clientAccount.findMany({
+      where: { vbCode },
+    });
+
+    this.logger.log(`[TEST] Found ${clientAccounts.length} client accounts`);
+
+    const results: Array<{ username: string; status: string; error?: string }> = [];
+
+    // สร้าง ClientNotification สำหรับแต่ละ account
+    for (const account of clientAccounts) {
+      try {
+        await this.notificationsService.createClientNotification(
+          notification.id,
+          account.username,
+        );
+        this.logger.log(`[TEST] Sent to user: ${account.username}`);
+        results.push({ username: account.username, status: 'sent' });
+      } catch (err) {
+        this.logger.error(`[TEST] Failed for ${account.username}:`, err);
+        results.push({ username: account.username, status: 'failed', error: (err as Error).message });
+      }
+    }
+
+    return {
+      notificationId: notification.id,
+      vbCode,
+      message,
+      totalClients: clientAccounts.length,
+      sentCount: results.filter(r => r.status === 'sent').length,
+      results,
+    };
+  }
 }
 
 

@@ -93,6 +93,32 @@ export class NotificationsController {
     }
   }
 
+  // Test - ส่ง notification ทันที (ไม่ต้องรอพรุ่งนี้)
+  @Post('test/send-notification-now')
+  async sendNotificationNow(
+    @Body('vbCode') vbCode: string,
+    @Body('message') message?: string,
+  ) {
+    try {
+      const result = await this.meetingReminderCron.testSendNotificationNow(
+        vbCode,
+        message || 'ທົດສອບການແຈ້ງເຕືອນ (Test Notification)',
+      );
+      return {
+        status: 'success',
+        message: 'Test notification sent',
+        result,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: 'Failed to send test notification',
+        error: error.message,
+      };
+    }
+  }
+
   // Preview - ดู village banks ที่จะมี meeting พรุ่งนี้
   @Get('test/preview-meetings')
   async previewMeetings() {
