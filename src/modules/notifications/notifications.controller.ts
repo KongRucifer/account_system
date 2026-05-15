@@ -100,6 +100,13 @@ export class NotificationsController {
     @Body('message') message?: string,
   ) {
     try {
+      if (!vbCode) {
+        return {
+          status: 'error',
+          message: 'vbCode is required in request body',
+        };
+      }
+      
       const result = await this.meetingReminderCron.testSendNotificationNow(
         vbCode,
         message || 'ທົດສອບການແຈ້ງເຕືອນ (Test Notification)',
