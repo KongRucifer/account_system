@@ -106,3 +106,34 @@ AccountOwner (find all accounts for client and the client can click in which acc
 2. Step 3 — Set up port forwarding (the key step):
    C:\Users\advice\AppData\Local\Android\sdk\platform-tools\adb.exe reverse tcp:4000 tcp:4000
    This makes your phone's localhost:4000 tunnel through USB to your PC's port 4000.
+
+
+
+   new table add "-- Table 1: meeting_notification
+CREATE TABLE IF NOT EXISTS meeting_notification (
+    id          UUID        NOT NULL DEFAULT gen_random_uuid(),
+    vb_code     CHAR(7)     NOT NULL,
+    meeting_date DATE       NOT NULL,
+    message     VARCHAR(255) NOT NULL,
+    is_active   BOOLEAN     NOT NULL DEFAULT true,
+    created_at  TIMESTAMP   NOT NULL DEFAULT now(),
+ 
+    CONSTRAINT meeting_notification_pkey PRIMARY KEY (id)
+);
+ 
+-- Table 2: client_meeting_notification
+CREATE TABLE IF NOT EXISTS client_meeting_notification (
+    id              UUID        NOT NULL DEFAULT gen_random_uuid(),
+    notification_id UUID        NOT NULL,
+    username        VARCHAR(50) NOT NULL,
+    is_read         BOOLEAN     NOT NULL DEFAULT false,
+    read_at         TIMESTAMP   NULL,
+    created_at      TIMESTAMP   NOT NULL DEFAULT now(),
+ 
+    CONSTRAINT client_meeting_notification_pkey PRIMARY KEY (id),
+    CONSTRAINT unique_client_notification UNIQUE (notification_id, username),
+    CONSTRAINT fk_client_meeting_notification_notification
+        FOREIGN KEY (notification_id)
+        REFERENCES meeting_notification (id)
+        ON DELETE CASCADE
+);"

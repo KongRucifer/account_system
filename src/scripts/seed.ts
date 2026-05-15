@@ -97,6 +97,7 @@ async function main() {
       statusId: STATUS_ACTIVE,
       vbCode: VB_CODE,
       openingDate: new Date('2020-01-01'),
+      lastUpdate: new Date(),
     },
   });
 
@@ -116,6 +117,7 @@ async function main() {
       statusId: STATUS_ACTIVE,
       vbCode: VB_CODE,
       openingDate: new Date('2022-03-01'),
+      lastUpdate: new Date(),
     },
   });
 
@@ -134,6 +136,7 @@ async function main() {
       statusId: STATUS_ACTIVE,
       vbCode: VB_CODE,
       openingDate: new Date('2023-01-15'),
+      lastUpdate: new Date(),
     },
   });
 
@@ -152,6 +155,7 @@ async function main() {
       statusId: STATUS_ACTIVE,
       vbCode: VB_CODE,
       openingDate: new Date('2022-03-01'),
+      lastUpdate: new Date(),
     },
   });
   console.log('✅  Accounts (3)');

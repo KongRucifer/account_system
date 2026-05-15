@@ -34,7 +34,7 @@ export interface AccountDashboardSummary {
     savingAmount: number | null;
     withdrawalAmount: number | null;
     interestNumerator: number;
-    date: Date;
+    date: Date | null;
   } | null;
 }
 

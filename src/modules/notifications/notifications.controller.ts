@@ -1,0 +1,101 @@
+import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import { NotificationsService } from './notifications.service';
+import { MeetingReminderCron } from './cron/meeting-reminder.cron';
+
+@Controller('notifications')
+export class NotificationsController {
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly meetingReminderCron: MeetingReminderCron,
+  ) {}
+
+  @Get('unread')
+  async getUnreadNotifications(@Query('username') username: string) {
+    if (!username) {
+      return {
+        status: 'error',
+        message: 'Username is required',
+        notifications: [],
+        unreadCount: 0,
+      };
+    }
+    return this.notificationsService.getUnreadNotifications(username);
+  }
+
+  @Get()
+  async getAllNotifications(@Query('username') username: string) {
+    if (!username) {
+      return {
+        status: 'error',
+        message: 'Username is required',
+        notifications: [],
+        unreadCount: 0,
+      };
+    }
+    return this.notificationsService.getAllNotifications(username);
+  }
+
+  @Post(':id/read')
+  async markAsRead(
+    @Param('id') notificationId: string,
+    @Body('username') username: string,
+  ) {
+    if (!username) {
+      return {
+        status: 'error',
+        message: 'Username is required',
+      };
+    }
+
+    const result = await this.notificationsService.markAsRead(notificationId, username);
+    
+    if (!result) {
+      return {
+        status: 'error',
+        message: 'Notification not found',
+      };
+    }
+
+    return {
+      status: 'success',
+      message: 'Notification marked as read',
+    };
+  }
+
+  @Patch('fcm-token')
+  async updateFcmToken(
+    @Body('username') username: string,
+    @Body('fcmToken') fcmToken: string | null,
+  ) {
+    if (!username) {
+      return { status: 'error', message: 'Username is required' };
+    }
+    await this.notificationsService.updateFcmToken(username, fcmToken ?? null);
+    return { status: 'success', message: 'FCM token updated' };
+  }
+
+  // Manual trigger for testing - เรียก cron job ทันที
+  @Post('test/trigger-meeting-reminder')
+  async triggerMeetingReminder() {
+    try {
+      await this.meetingReminderCron.handleMeetingReminder();
+      return {
+        status: 'success',
+        message: 'Meeting reminder cron job triggered manually',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: 'Failed to trigger cron job',
+        error: error.message,
+      };
+    }
+  }
+
+  // Preview - ดู village banks ที่จะมี meeting พรุ่งนี้
+  @Get('test/preview-meetings')
+  async previewMeetings() {
+    return this.meetingReminderCron.previewMeetingsTomorrow();
+  }
+}

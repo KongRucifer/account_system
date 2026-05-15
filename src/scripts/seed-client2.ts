@@ -180,6 +180,7 @@ async function main() {
       statusId:       STATUS_ACTIVE,
       vbCode:         VB_CODE,
       openingDate:    new Date('2020-01-01'),
+      lastUpdate:     new Date(),
     },
   });
 
@@ -199,6 +200,7 @@ async function main() {
       statusId:       STATUS_ACTIVE,
       vbCode:         VB_CODE,
       openingDate:    new Date('2023-01-01'),
+      lastUpdate:     new Date(),
     },
   });
   console.log(`✅  Savings account: ${ACC_SAVINGS2}`);
@@ -219,6 +221,7 @@ async function main() {
       statusId:       STATUS_ACTIVE,
       vbCode:         VB_CODE,
       openingDate:    new Date('2023-03-01'),
+      lastUpdate:     new Date(),
     },
   });
   console.log(`✅  Loan account: ${ACC_LOAN2}`);

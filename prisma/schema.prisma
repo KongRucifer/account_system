@@ -418,8 +418,11 @@ model ClientAccount {
   username       String         @unique @db.VarChar(50)
   phoneNumber    String?        @map("phone_number") @db.VarChar(12)
   password       String
+  fcmToken       String?        @map("fcm_token") @db.Text
+  fcmTokenUpdatedAt DateTime?   @map("fcm_token_updated_at") @db.Timestamp(6)
   vb             VbCode         @relation(fields: [vbCode], references: [id], onDelete: NoAction, onUpdate: NoAction)
   refreshTokens  RefreshToken[]
+  clientNotifications ClientMeetingNotification[]
 
   @@id([bankbookNumber, vbCode])
   @@map("client_account")
@@ -2029,4 +2032,33 @@ model vbc_arrangement {
   vbc_id         String?   @db.Char(12)
 
   @@id([id, vbcode], map: "vb_commiteeteammeeting_pkey")
+}
+
+model MeetingNotification {
+  id          String    @id @default(uuid()) @db.Uuid
+  vbCode      String    @map("vb_code") @db.Char(7)
+  meetingDate DateTime  @map("meeting_date") @db.Date
+  message     String    @map("message") @db.VarChar(255)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  clientNotifications ClientMeetingNotification[]
+
+  @@map("meeting_notification")
+}
+
+model ClientMeetingNotification {
+  id             String              @id @default(uuid()) @db.Uuid
+  notificationId String              @map("notification_id") @db.Uuid
+  username       String              @map("username") @db.VarChar(50)
+  isRead         Boolean             @default(false) @map("is_read")
+  readAt         DateTime?           @map("read_at") @db.Timestamp(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+
+  notification MeetingNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  client       ClientAccount? @relation(fields: [username], references: [username], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([notificationId, username], map: "unique_client_notification")
+  @@map("client_meeting_notification")
 }
