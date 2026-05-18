@@ -25,16 +25,21 @@ export class NotificationsController {
   }
 
   @Get()
-  async getAllNotifications(@Query('username') username: string) {
+  async getAllNotifications(
+    @Query('username') username: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 12,
+  ) {
     if (!username) {
       return {
         status: 'error',
         message: 'Username is required',
         notifications: [],
         unreadCount: 0,
+        pagination: null,
       };
     }
-    return this.notificationsService.getAllNotifications(username);
+    return this.notificationsService.getAllNotifications(username, page, limit);
   }
 
   @Post(':id/read')
@@ -74,6 +79,19 @@ export class NotificationsController {
     }
     await this.notificationsService.updateFcmToken(username, fcmToken ?? null);
     return { status: 'success', message: 'FCM token updated' };
+  }
+
+  @Patch('mark-all-read')
+  async markAllAsRead(@Body('username') username: string) {
+    if (!username) {
+      return { status: 'error', message: 'Username is required' };
+    }
+    const result = await this.notificationsService.markAllAsRead(username);
+    return {
+      status: 'success',
+      message: 'All notifications marked as read',
+      count: result,
+    };
   }
 
   // Manual trigger for testing - เรียก cron job ทันที

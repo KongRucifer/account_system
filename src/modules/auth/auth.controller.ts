@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService, TokenResponse } from './auth.service';
@@ -99,6 +99,16 @@ export class AuthController {
     this.clearTokenCookies(res);
     
     return { message: 'Logged out successfully' };
+  }
+
+  @Get('check-username')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check if username is available' })
+  @ApiResponse({ status: 200, description: 'Username availability check result' })
+  async checkUsername(
+    @Query('username') username: string,
+  ): Promise<{ available: boolean; message?: string }> {
+    return this.authService.checkUsernameAvailability(username);
   }
 
   private setTokenCookies(

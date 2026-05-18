@@ -37,6 +37,7 @@ export class TransactionsService {
     const where: any = {
       bankbookNumber: account.bankbookNumber,
       vbCode: account.vbCode,
+      creditAccNumber: accountId, // from the client request
       transactionCodeId: txCode ? txCode : { in: allowedTxCodes },
     };
 

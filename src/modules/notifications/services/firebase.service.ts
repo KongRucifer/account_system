@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class FirebaseService {
@@ -14,13 +16,46 @@ export class FirebaseService {
     try {
       // Check if Firebase is already initialized
       if (admin.apps.length === 0) {
-        this.firebaseApp = admin.initializeApp({
-          credential: admin.credential.cert({
+        let credential;
+
+        // Determine project root directory
+        const projectRoot = process.cwd();
+        
+        // Try to load from service account JSON file first
+        // Check multiple possible locations
+        const possiblePaths = [
+          process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
+          path.join(projectRoot, 'firebase-service-account.json'),
+          path.join(projectRoot, 'dist', 'firebase-service-account.json'),
+          './firebase-service-account.json',
+        ].filter(Boolean);
+
+        let serviceAccountPath: string | null = null;
+        for (const p of possiblePaths) {
+          if (p && fs.existsSync(p)) {
+            serviceAccountPath = p;
+            break;
+          }
+        }
+
+        if (serviceAccountPath) {
+          const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+          credential = admin.credential.cert(serviceAccount);
+          this.logger.log(`✅ Loaded Firebase service account from: ${serviceAccountPath}`);
+        } else {
+          // Fall back to environment variables
+          if (!process.env.FIREBASE_PROJECT_ID) {
+            throw new Error('FIREBASE_PROJECT_ID not set and no service account file found. Searched: ' + possiblePaths.join(', '));
+          }
+          credential = admin.credential.cert({
             projectId: process.env.FIREBASE_PROJECT_ID,
             privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          }),
-        });
+          });
+          this.logger.log('✅ Loaded Firebase credentials from environment variables');
+        }
+
+        this.firebaseApp = admin.initializeApp({ credential });
         this.logger.log('✅ Firebase Admin initialized successfully');
       } else {
         this.firebaseApp = admin.apps[0]!;
@@ -103,15 +138,13 @@ export class FirebaseService {
         android: {
           priority: 'high',
           notification: {
-            channelId: 'meeting_notifications',
-            sound: 'default',
+            channelId: 'meeting_notifications_v2',
             priority: 'high',
           },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
               badge: 1,
             },
           },

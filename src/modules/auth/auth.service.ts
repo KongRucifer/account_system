@@ -1,11 +1,14 @@
-import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
+import { Client, ClientAccount } from '@prisma/client';
 import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { getTranslatedError } from '../../shared/i18n/error-messages';
 
 export interface TokenResponse {
   accessToken: string;
@@ -22,6 +25,10 @@ export interface TokenResponse {
     nickName: string;
     vbCode: string;
   }[];
+}
+
+export interface RefreshTokenDto {
+  refreshToken: string;
 }
 
 @Injectable()
@@ -334,5 +341,26 @@ export class AuthService {
       },
     });
     return result.count;
+  }
+
+  async checkUsernameAvailability(username: string): Promise<{ available: boolean; message?: string }> {
+    if (!username || username.trim().length === 0) {
+      return { available: false, message: 'Username is required' };
+    }
+
+    if (username.length < 3) {
+      return { available: false, message: 'Username must be at least 3 characters long' };
+    }
+
+    // Check if username already exists
+    const existingAccount = await this.prisma.clientAccount.findUnique({
+      where: { username: username.trim() },
+    });
+
+    if (existingAccount) {
+      return { available: false, message: 'Username is already taken' };
+    }
+
+    return { available: true };
   }
 }

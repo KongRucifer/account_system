@@ -135,20 +135,59 @@ export class NotificationsService {
     };
   }
 
-  async getAllNotifications(username: string) {
-    const notifications = await this.prisma.clientMeetingNotification.findMany({
+  async getAllNotifications(username: string, page: number = 1, limit: number = 12) {
+    const skip = (page - 1) * limit;
+    
+    // Calculate date thresholds
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000));
+    const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
+    
+    const [notifications, totalCount] = await Promise.all([
+      this.prisma.clientMeetingNotification.findMany({
+        where: {
+          username,
+          // Show only unread notifications, or read notifications from last 2 days
+          OR: [
+            { isRead: false },
+            { 
+              isRead: true,
+              createdAt: { gte: twoDaysAgo }
+            }
+          ]
+        },
+        include: {
+          notification: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.clientMeetingNotification.count({
+        where: {
+          username,
+          // Count only unread notifications, or read notifications from last 2 days
+          OR: [
+            { isRead: false },
+            { 
+              isRead: true,
+              createdAt: { gte: twoDaysAgo }
+            }
+          ]
+        },
+      }),
+    ]);
+
+    const unreadCount = await this.prisma.clientMeetingNotification.count({
       where: {
         username,
-      },
-      include: {
-        notification: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
+        isRead: false,
       },
     });
 
-    const unreadCount = notifications.filter((n) => !n.isRead).length;
+    const totalPages = Math.ceil(totalCount / limit);
 
     return {
       notifications: notifications.map((n) => ({
@@ -158,10 +197,17 @@ export class NotificationsService {
         meetingDate: n.notification.meetingDate,
         vbCode: n.notification.vbCode,
         isRead: n.isRead,
-        readAt: n.readAt,
         createdAt: n.createdAt,
       })),
       unreadCount,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
     };
   }
 
@@ -205,5 +251,27 @@ export class NotificationsService {
     });
 
     return updated;
+  }
+
+  async markAllAsRead(username: string) {
+    const result = await this.prisma.clientMeetingNotification.updateMany({
+      where: {
+        username,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+        readAt: new Date(),
+      },
+    });
+
+    // ส่ง WebSocket event แจ้งว่าอ่านทั้งหมดแล้ว
+    this.notificationsGateway.sendNotificationToUser(username, {
+      type: 'all_notifications_read',
+      count: result.count,
+      readAt: new Date(),
+    });
+
+    return result.count;
   }
 }
