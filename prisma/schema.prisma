@@ -418,14 +418,24 @@ model ClientAccount {
   username       String         @unique @db.VarChar(50)
   phoneNumber    String?        @map("phone_number") @db.VarChar(12)
   password       String
-  fcmToken       String?        @map("fcm_token") @db.Text
-  fcmTokenUpdatedAt DateTime?   @map("fcm_token_updated_at") @db.Timestamp(6)
   vb             VbCode         @relation(fields: [vbCode], references: [id], onDelete: NoAction, onUpdate: NoAction)
   refreshTokens  RefreshToken[]
   clientNotifications ClientMeetingNotification[]
+  deviceFcm      DeviceFcm?
 
   @@id([bankbookNumber, vbCode])
   @@map("client_account")
+}
+
+model DeviceFcm {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deviceId          String   @map("device_id") @db.VarChar(255) @unique
+  fcmToken          String?  @map("fcm_token") @db.Text
+  fcmTokenUpdatedAt DateTime? @map("fcm_token_updated_at") @db.Timestamp(6)
+  username          String   @unique @db.VarChar(50)
+  clientAccount     ClientAccount @relation(fields: [username], references: [username], onDelete: Cascade)
+
+  @@map("devices_fcm")
 }
 
 model RefreshToken {

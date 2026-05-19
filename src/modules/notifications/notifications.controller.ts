@@ -72,12 +72,16 @@ export class NotificationsController {
   @Patch('fcm-token')
   async updateFcmToken(
     @Body('username') username: string,
+    @Body('deviceId') deviceId: string,
     @Body('fcmToken') fcmToken: string | null,
   ) {
     if (!username) {
       return { status: 'error', message: 'Username is required' };
     }
-    await this.notificationsService.updateFcmToken(username, fcmToken ?? null);
+    if (!deviceId) {
+      return { status: 'error', message: 'Device ID is required' };
+    }
+    await this.notificationsService.updateFcmToken(username, deviceId, fcmToken ?? null);
     return { status: 'success', message: 'FCM token updated' };
   }
 
