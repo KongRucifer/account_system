@@ -77,25 +77,25 @@ export class FirebaseService {
     try {
       const message: admin.messaging.Message = {
         token: fcmToken,
-        notification: {
+        // data-only: no top-level notification field
+        // This forces firebaseMessagingBackgroundHandler to run even when app is terminated
+        // which guarantees our channel/sound settings are used instead of Android OS defaults
+        data: {
+          ...(data || {}),
           title,
           body,
         },
-        data: data || {},
         android: {
           priority: 'high',
-          notification: {
-            channelId: 'meeting_notifications_v2',
-            sound: 'meeting_sound',
-            priority: 'high',
-          },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
-              badge: 1,
+              contentAvailable: true,
             },
+          },
+          headers: {
+            'apns-priority': '5',
           },
         },
       };
@@ -130,23 +130,23 @@ export class FirebaseService {
     try {
       const message: admin.messaging.MulticastMessage = {
         tokens: fcmTokens,
-        notification: {
+        // data-only: forces background handler to display with correct channel/sound
+        data: {
+          ...(data || {}),
           title,
           body,
         },
-        data: data || {},
         android: {
           priority: 'high',
-          notification: {
-            channelId: 'meeting_notifications_v2',
-            priority: 'high',
-          },
         },
         apns: {
           payload: {
             aps: {
-              badge: 1,
+              contentAvailable: true,
             },
+          },
+          headers: {
+            'apns-priority': '5',
           },
         },
       };
@@ -179,25 +179,23 @@ export class FirebaseService {
     try {
       const message: admin.messaging.Message = {
         topic,
-        notification: {
+        // data-only: forces background handler to display with correct channel/sound
+        data: {
+          ...(data || {}),
           title,
           body,
         },
-        data: data || {},
         android: {
           priority: 'high',
-          notification: {
-            channelId: 'meeting_notifications_v2',
-            sound: 'meeting_sound',
-            priority: 'high',
-          },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
-              badge: 1,
+              contentAvailable: true,
             },
+          },
+          headers: {
+            'apns-priority': '5',
           },
         },
       };
