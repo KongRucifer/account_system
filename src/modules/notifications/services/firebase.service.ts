@@ -77,7 +77,8 @@ export class FirebaseService {
     try {
       const message: admin.messaging.Message = {
         token: fcmToken,
-        notification: { title, body },
+        // Data-only message: forces the background Dart isolate to handle it
+        // so our custom channel (with sound) is always used on Android
         data: {
           ...(data || {}),
           title,
@@ -85,18 +86,16 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
-          notification: {
-            channelId: 'meeting_notifications_v3',
-            sound: 'meeting_sound',
-            priority: 'high',
-          },
+          // No android.notification block — data-only, Dart handles display
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
-              badge: 1,
+              contentAvailable: true,
             },
+          },
+          headers: {
+            'apns-priority': '5',
           },
         },
       };
@@ -131,7 +130,7 @@ export class FirebaseService {
     try {
       const message: admin.messaging.MulticastMessage = {
         tokens: fcmTokens,
-        notification: { title, body },
+        // Data-only message: forces the background Dart isolate to handle it
         data: {
           ...(data || {}),
           title,
@@ -139,18 +138,15 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
-          notification: {
-            channelId: 'meeting_notifications_v3',
-            sound: 'meeting_sound',
-            priority: 'high',
-          },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
-              badge: 1,
+              contentAvailable: true,
             },
+          },
+          headers: {
+            'apns-priority': '5',
           },
         },
       };
@@ -183,7 +179,7 @@ export class FirebaseService {
     try {
       const message: admin.messaging.Message = {
         topic,
-        notification: { title, body },
+        // Data-only message: forces the background Dart isolate to handle it
         data: {
           ...(data || {}),
           title,
@@ -191,18 +187,15 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
-          notification: {
-            channelId: 'meeting_notifications_v3',
-            sound: 'meeting_sound',
-            priority: 'high',
-          },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
-              badge: 1,
+              contentAvailable: true,
             },
+          },
+          headers: {
+            'apns-priority': '5',
           },
         },
       };
