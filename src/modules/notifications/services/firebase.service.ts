@@ -77,9 +77,7 @@ export class FirebaseService {
     try {
       const message: admin.messaging.Message = {
         token: fcmToken,
-        // data-only: no top-level notification field
-        // This forces firebaseMessagingBackgroundHandler to run even when app is terminated
-        // which guarantees our channel/sound settings are used instead of Android OS defaults
+        notification: { title, body },
         data: {
           ...(data || {}),
           title,
@@ -87,15 +85,18 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
+          notification: {
+            channelId: 'meeting_notifications_v2',
+            sound: 'meeting_sound',
+            priority: 'high',
+          },
         },
         apns: {
           payload: {
             aps: {
-              contentAvailable: true,
+              sound: 'default',
+              badge: 1,
             },
-          },
-          headers: {
-            'apns-priority': '5',
           },
         },
       };
@@ -130,7 +131,7 @@ export class FirebaseService {
     try {
       const message: admin.messaging.MulticastMessage = {
         tokens: fcmTokens,
-        // data-only: forces background handler to display with correct channel/sound
+        notification: { title, body },
         data: {
           ...(data || {}),
           title,
@@ -138,15 +139,18 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
+          notification: {
+            channelId: 'meeting_notifications_v2',
+            sound: 'meeting_sound',
+            priority: 'high',
+          },
         },
         apns: {
           payload: {
             aps: {
-              contentAvailable: true,
+              sound: 'default',
+              badge: 1,
             },
-          },
-          headers: {
-            'apns-priority': '5',
           },
         },
       };
@@ -179,7 +183,7 @@ export class FirebaseService {
     try {
       const message: admin.messaging.Message = {
         topic,
-        // data-only: forces background handler to display with correct channel/sound
+        notification: { title, body },
         data: {
           ...(data || {}),
           title,
@@ -187,15 +191,18 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
+          notification: {
+            channelId: 'meeting_notifications_v2',
+            sound: 'meeting_sound',
+            priority: 'high',
+          },
         },
         apns: {
           payload: {
             aps: {
-              contentAvailable: true,
+              sound: 'default',
+              badge: 1,
             },
-          },
-          headers: {
-            'apns-priority': '5',
           },
         },
       };
