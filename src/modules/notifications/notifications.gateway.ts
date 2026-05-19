@@ -8,6 +8,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @WebSocketGateway({
   namespace: '/notifications',
@@ -25,7 +26,10 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   // เก็บ mapping ของ username -> socket id
   private userSocketMap: Map<string, string> = new Map();
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -38,10 +42,22 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
       }
 
       const payload = this.jwtService.verify(token);
-      const username = payload.username;
+      // JWT sub = bankbookNumber — look up the actual username from DB
+      const bankbookNumber = payload.sub;
+      if (!bankbookNumber) {
+        this.logger.warn('Client connected without sub in token');
+        client.disconnect();
+        return;
+      }
+
+      const clientAccount = await this.prisma.clientAccount.findFirst({
+        where: { bankbookNumber },
+        select: { username: true },
+      });
+      const username = clientAccount?.username;
 
       if (!username) {
-        this.logger.warn('Client connected without username in token');
+        this.logger.warn(`No account found for bankbookNumber: ${bankbookNumber}`);
         client.disconnect();
         return;
       }

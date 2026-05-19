@@ -13,7 +13,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'default-secret',
+      secret: process.env.JWT_SECRET || 'ltsventure-jwt-secret-key',
       signOptions: { expiresIn: '7d' },
     }),
   ],
