@@ -86,7 +86,7 @@ export class FirebaseService {
         android: {
           priority: 'high',
           notification: {
-            channelId: 'meeting_notifications_v2',
+            channelId: 'meeting_notifications_v3',
             sound: 'meeting_sound',
             priority: 'high',
           },
@@ -140,7 +140,7 @@ export class FirebaseService {
         android: {
           priority: 'high',
           notification: {
-            channelId: 'meeting_notifications_v2',
+            channelId: 'meeting_notifications_v3',
             sound: 'meeting_sound',
             priority: 'high',
           },
@@ -192,7 +192,7 @@ export class FirebaseService {
         android: {
           priority: 'high',
           notification: {
-            channelId: 'meeting_notifications_v2',
+            channelId: 'meeting_notifications_v3',
             sound: 'meeting_sound',
             priority: 'high',
           },
