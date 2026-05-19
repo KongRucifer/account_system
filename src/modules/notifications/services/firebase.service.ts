@@ -86,7 +86,6 @@ export class FirebaseService {
         },
         android: {
           priority: 'high',
-          // No android.notification block — data-only, Dart handles display
         },
         apns: {
           payload: {
