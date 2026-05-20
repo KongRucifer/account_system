@@ -433,6 +433,7 @@ model DeviceFcm {
   fcmToken          String?  @map("fcm_token") @db.Text
   fcmTokenUpdatedAt DateTime? @map("fcm_token_updated_at") @db.Timestamp(6)
   username          String   @db.VarChar(50)
+  isActive          Boolean  @default(true) @map("is_active")
   clientAccount     ClientAccount @relation(fields: [username], references: [username], onDelete: Cascade)
 
   @@unique([username, deviceId])

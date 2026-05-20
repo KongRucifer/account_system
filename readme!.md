@@ -137,3 +137,13 @@ CREATE TABLE IF NOT EXISTS client_meeting_notification (
         REFERENCES meeting_notification (id)
         ON DELETE CASCADE
 );"
+
+
+-- 1. Drop old unique constraints
+ALTER TABLE devices_fcm DROP CONSTRAINT IF EXISTS "devices_fcm_username_key";
+ALTER TABLE devices_fcm DROP CONSTRAINT IF EXISTS "devices_fcm_device_id_key";
+ 
+-- 2. Add new composite unique constraint (username + device_id)
+ALTER TABLE devices_fcm ADD CONSTRAINT "devices_fcm_username_deviceId_key" UNIQUE (username, device_id);
+
+ALTER TABLE devices_fcm ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true;

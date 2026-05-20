@@ -69,6 +69,18 @@ export class NotificationsController {
     };
   }
 
+  @Patch('fcm-token/deactivate')
+  async deactivateFcmToken(
+    @Body('username') username: string,
+    @Body('deviceId') deviceId: string,
+  ) {
+    if (!username || !deviceId) {
+      return { status: 'error', message: 'Username and deviceId are required' };
+    }
+    await this.notificationsService.deactivateFcmToken(username, deviceId);
+    return { status: 'success', message: 'FCM token deactivated' };
+  }
+
   @Patch('fcm-token')
   async updateFcmToken(
     @Body('username') username: string,

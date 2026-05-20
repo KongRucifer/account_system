@@ -86,9 +86,9 @@ export class NotificationsService {
     notification: { title: string; body: string; data?: Record<string, string> },
   ) {
     try {
-      // หา FCM tokens ทั้งหมดของ user (ทุก device)
+      // หา FCM tokens เฉพาะ device ที่ isActive=true ของ user (ทุก device ที่ login อยู่)
       const devices = await this.prisma.deviceFcm.findMany({
-        where: { username },
+        where: { username, isActive: true },
         select: { fcmToken: true, deviceId: true },
       });
 
@@ -228,19 +228,35 @@ export class NotificationsService {
   }
 
   async updateFcmToken(username: string, deviceId: string, fcmToken: string | null) {
-    // Upsert by composite key (username + deviceId) — supports multiple devices per user
+    // ถ้า deviceId นี้เคย login ด้วย username อื่น — ตั้ง isActive=false ให้ record เดิมก่อน (device เปลี่ยน user)
+    await this.prisma.deviceFcm.updateMany({
+      where: { deviceId, username: { not: username } },
+      data: { isActive: false },
+    });
+
+    // Upsert by composite key (username + deviceId) — set isActive=true on login
     await this.prisma.deviceFcm.upsert({
       where: { username_deviceId: { username, deviceId } },
       create: {
         username,
         deviceId,
         fcmToken,
+        isActive: true,
         fcmTokenUpdatedAt: fcmToken ? new Date() : null,
       },
       update: {
         fcmToken,
+        isActive: true,
         fcmTokenUpdatedAt: fcmToken ? new Date() : null,
       },
+    });
+  }
+
+  async deactivateFcmToken(username: string, deviceId: string) {
+    // logout: ตั้ง isActive=false สำหรับ device นี้ — ไม่ลบ record เพราะ B,C ยังคงต้องใช้ได้
+    await this.prisma.deviceFcm.updateMany({
+      where: { username, deviceId },
+      data: { isActive: false },
     });
   }
 
