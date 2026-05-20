@@ -23,8 +23,8 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   @WebSocketServer()
   server: Server;
 
-  // เก็บ mapping ของ username -> socket id
-  private userSocketMap: Map<string, string> = new Map();
+  // เก็บ mapping ของ username -> Set ของ socket ids (รองรับหลาย device)
+  private userSocketMap: Map<string, Set<string>> = new Map();
 
   constructor(
     private readonly jwtService: JwtService,
@@ -62,14 +62,17 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
         return;
       }
 
-      // บันทึก mapping
-      this.userSocketMap.set(username, client.id);
+      // บันทึก mapping (รองรับหลาย device ต่อ username)
+      if (!this.userSocketMap.has(username)) {
+        this.userSocketMap.set(username, new Set());
+      }
+      this.userSocketMap.get(username)!.add(client.id);
       client.data.username = username;
 
-      // เข้าห้องส่วนตัวของ user
+      // เข้าห้องส่วนตัวของ user (ทุก device อยู่ห้องเดียวกัน)
       client.join(`user:${username}`);
 
-      this.logger.log(`Client connected: ${username} (${client.id})`);
+      this.logger.log(`Client connected: ${username} (${client.id}), total devices: ${this.userSocketMap.get(username)!.size}`);
 
       // ส่งยืนยันการเชื่อมต่อ
       client.emit('connected', {
@@ -86,7 +89,13 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   handleDisconnect(client: Socket) {
     const username = client.data?.username;
     if (username) {
-      this.userSocketMap.delete(username);
+      const sockets = this.userSocketMap.get(username);
+      if (sockets) {
+        sockets.delete(client.id);
+        if (sockets.size === 0) {
+          this.userSocketMap.delete(username);
+        }
+      }
       this.logger.log(`Client disconnected: ${username} (${client.id})`);
     }
   }
@@ -111,7 +120,8 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
 
   // ตรวจสอบว่า user ออนไลน์อยู่หรือไม่
   isUserOnline(username: string): boolean {
-    return this.userSocketMap.has(username);
+    const sockets = this.userSocketMap.get(username);
+    return !!sockets && sockets.size > 0;
   }
 
   // ดูจำนวน users ที่ออนไลน์
@@ -134,10 +144,30 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     const username = client.data?.username;
     if (!username) return;
 
-    // ส่ง event กลับไปยืนยัน
-    client.emit('notification_read', {
+    // Broadcast ไปยังทุก device ของ username นี้ (รวม device ที่กดด้วย)
+    this.server.to(`user:${username}`).emit('notification_read', {
       notificationId: payload.notificationId,
       readAt: new Date().toISOString(),
     });
+    this.logger.log(`mark_as_read broadcast to all devices of ${username}: ${payload.notificationId}`);
+  }
+
+  // Broadcast all_notifications_read ไปยังทุก device ของ username
+  broadcastAllRead(username: string) {
+    this.server.to(`user:${username}`).emit('all_notifications_read', {
+      readAt: new Date().toISOString(),
+    });
+    this.logger.log(`all_notifications_read broadcast to all devices of ${username}`);
+  }
+
+  // Client ส่ง mark_all_as_read ผ่าน WebSocket
+  @SubscribeMessage('mark_all_as_read')
+  handleMarkAllAsRead(client: Socket) {
+    const username = client.data?.username;
+    if (!username) return;
+
+    // Broadcast ไปยังทุก device ของ username นี้
+    this.broadcastAllRead(username);
+    this.logger.log(`mark_all_as_read broadcast to all devices of ${username}`);
   }
 }

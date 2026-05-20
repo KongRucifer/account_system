@@ -278,12 +278,13 @@ export class NotificationsService {
       },
     });
 
-    // ส่ง WebSocket event แจ้งว่าอ่านแล้ว
-    this.notificationsGateway.sendNotificationToUser(username, {
-      type: 'notification_read',
-      notificationId,
-      readAt: updated.readAt,
-    });
+    // Broadcast ไปยังทุก device ของ username เดียวกัน
+    this.notificationsGateway.server
+      .to(`user:${username}`)
+      .emit('notification_read', {
+        notificationId,
+        readAt: updated.readAt,
+      });
 
     return updated;
   }
@@ -300,12 +301,8 @@ export class NotificationsService {
       },
     });
 
-    // ส่ง WebSocket event แจ้งว่าอ่านทั้งหมดแล้ว
-    this.notificationsGateway.sendNotificationToUser(username, {
-      type: 'all_notifications_read',
-      count: result.count,
-      readAt: new Date(),
-    });
+    // Broadcast all_notifications_read ไปยังทุก device ของ username เดียวกัน
+    this.notificationsGateway.broadcastAllRead(username);
 
     return result.count;
   }
