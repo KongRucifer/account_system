@@ -25,20 +25,24 @@ export class TransactionsService {
       return createPaginatedResponse([], pagination, 'Account transactions fetched successfully');
     }
 
-    let allowedTxCodes: string[];
-    if (account.accTypeId === LOAN_ACC_TYPE_ID) {
-      allowedTxCodes = LOAN_TX_CODES;
-    } else if (account.accTypeId === SAVINGS_ACC_TYPE_ID) {
-      allowedTxCodes = SAVINGS_TX_CODES;
-    } else {
-      allowedTxCodes = [...LOAN_TX_CODES, ...SAVINGS_TX_CODES];
-    }
+    const allowedTxCodes = account.accTypeId === LOAN_ACC_TYPE_ID
+      ? LOAN_TX_CODES
+      : account.accTypeId === SAVINGS_ACC_TYPE_ID
+        ? SAVINGS_TX_CODES
+        : [...LOAN_TX_CODES, ...SAVINGS_TX_CODES];
+
+    const reversedPrefix = 'Reversed Trax By :';
+
+    const accNumberConditions = account.accTypeId === LOAN_ACC_TYPE_ID
+      ? [{ creditAccNumber: accountId }, { debitAccNumber: accountId }, { description: accountId }]
+      : [{ creditAccNumber: accountId }, { debitAccNumber: accountId }];
 
     const where: any = {
       bankbookNumber: account.bankbookNumber,
       vbCode: account.vbCode,
-      creditAccNumber: accountId, // from the client request
+      OR: accNumberConditions,
       transactionCodeId: txCode ? txCode : { in: allowedTxCodes },
+      NOT: { description: { startsWith: reversedPrefix } },
     };
 
     const [transactions, total] = await Promise.all([
@@ -77,22 +81,27 @@ export class TransactionsService {
       return createPaginatedResponse([], pagination, 'Account year transactions fetched successfully');
     }
 
-    let allowedTxCodes: string[];
-    if (account.accTypeId === LOAN_ACC_TYPE_ID) {
-      allowedTxCodes = LOAN_TX_CODES;
-    } else if (account.accTypeId === SAVINGS_ACC_TYPE_ID) {
-      allowedTxCodes = SAVINGS_TX_CODES;
-    } else {
-      allowedTxCodes = [...LOAN_TX_CODES, ...SAVINGS_TX_CODES];
-    }
+    const allowedTxCodes = account.accTypeId === LOAN_ACC_TYPE_ID
+      ? LOAN_TX_CODES
+      : account.accTypeId === SAVINGS_ACC_TYPE_ID
+        ? SAVINGS_TX_CODES
+        : [...LOAN_TX_CODES, ...SAVINGS_TX_CODES];
 
     const startDate = new Date(`${year}-01-01`);
     const endDate = new Date(`${year + 1}-01-01`);
+    const reversedPrefix = 'Reversed Trax By :';
+
+    const accNumberConditions = account.accTypeId === LOAN_ACC_TYPE_ID
+      ? [{ creditAccNumber: accountId }, { debitAccNumber: accountId }, { description: accountId }]
+      : [{ creditAccNumber: accountId }, { debitAccNumber: accountId }];
+
     const where: any = {
       bankbookNumber: account.bankbookNumber,
       vbCode: account.vbCode,
       date: { gte: startDate, lt: endDate },
+      OR: accNumberConditions,
       transactionCodeId: txCode ? txCode : { in: allowedTxCodes },
+      NOT: { description: { startsWith: reversedPrefix } },
     };
 
     const [transactions, total] = await Promise.all([

@@ -86,20 +86,36 @@ export class NotificationsService {
     notification: { title: string; body: string; data?: Record<string, string> },
   ) {
     try {
-      // หา FCM token ของ user from DeviceFcm table
-      const deviceFcm = await this.prisma.deviceFcm.findUnique({
+      // หา FCM tokens ทั้งหมดของ user (ทุก device)
+      const devices = await this.prisma.deviceFcm.findMany({
         where: { username },
-        select: { fcmToken: true },
+        select: { fcmToken: true, deviceId: true },
       });
 
-      if (deviceFcm?.fcmToken) {
+      const tokens = devices.map(d => d.fcmToken).filter((t): t is string => !!t);
+
+      if (tokens.length === 0) {
+        console.warn(`⚠️ No FCM tokens found for user: ${username}`);
+        return;
+      }
+
+      if (tokens.length === 1) {
         await this.firebaseService.sendPushNotification(
-          deviceFcm.fcmToken,
+          tokens[0],
+          notification.title,
+          notification.body,
+          notification.data,
+        );
+      } else {
+        await this.firebaseService.sendMulticastNotification(
+          tokens,
           notification.title,
           notification.body,
           notification.data,
         );
       }
+
+      console.log(`✅ FCM sent to user: ${username} (${tokens.length} device(s))`);
     } catch (error) {
       console.error('❌ Failed to send push notification:', error.message);
     }
@@ -212,9 +228,9 @@ export class NotificationsService {
   }
 
   async updateFcmToken(username: string, deviceId: string, fcmToken: string | null) {
-    // Upsert: Create if not exists, update if exists
+    // Upsert by composite key (username + deviceId) — supports multiple devices per user
     await this.prisma.deviceFcm.upsert({
-      where: { username },
+      where: { username_deviceId: { username, deviceId } },
       create: {
         username,
         deviceId,
@@ -222,7 +238,6 @@ export class NotificationsService {
         fcmTokenUpdatedAt: fcmToken ? new Date() : null,
       },
       update: {
-        deviceId,
         fcmToken,
         fcmTokenUpdatedAt: fcmToken ? new Date() : null,
       },
@@ -230,13 +245,13 @@ export class NotificationsService {
   }
 
   async getDeviceFcmByUsername(username: string) {
-    return this.prisma.deviceFcm.findUnique({
+    return this.prisma.deviceFcm.findMany({
       where: { username },
     });
   }
 
   async deleteDeviceFcm(username: string) {
-    await this.prisma.deviceFcm.delete({
+    await this.prisma.deviceFcm.deleteMany({
       where: { username },
     });
   }
