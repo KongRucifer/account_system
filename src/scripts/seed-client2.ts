@@ -9,7 +9,7 @@
  *  - 30 Transactions across 2023-2025 with proper codes:
  *      2201 = ເງິນຝາກ (deposit)
  *      2202 = ເງິນຖອນ (withdrawal)
- *      2203 = ເງິນປັບຜົນ (interest adjustment / profit)
+ *      2203 = ເງິນປັນຜົນ (interest adjustment / profit)
  *      1011 = ຊຳລະຕົ້ນທຶນ (principal repayment)
  *      1012 = ຊຳລະດອກເບ້ຍ (interest repayment)
  *      1201 = ປ່ອຍກູ້ (loan disbursement)
@@ -40,7 +40,7 @@ const ACC_TYPE_LOAN      = '5';         // short term loans
 // Transaction codes
 const TX_DEPOSIT    = '2201';   // ເງິນຝາກ
 const TX_WITHDRAW   = '2202';   // ເງິນຖອນ
-const TX_INTEREST   = '2203';   // ເງິນປັບຜົນ (interest/profit adjustment)
+const TX_INTEREST   = '2203';   // ເງິນປັນຜົນ (interest/profit adjustment)
 const TX_PRINCIPAL  = '1011';   // ຊຳລະຕົ້ນທຶນ
 const TX_INT_PAY    = '1012';   // ຊຳລະດອກເບ້ຍ
 const TX_LOAN_DIS   = '1201';   // ປ່ອຍກູ້
@@ -125,7 +125,7 @@ async function main() {
     {
       transactionCode: TX_INTEREST,
       nameEng: 'Saving interest / profit adjustment',
-      nameLao: 'ດອກເບ້ຍ / ປັບຜົນກຳໄລເງິນຝາກ',
+      nameLao: 'ດອກເບ້ຍ / ປັນຜົນກຳໄລເງິນຝາກ',
       debitAccNameEng: 'Interest Expense',
       debitAccNameLao: 'ຄ່າໃຊ້ຈ່າຍດອກເບ້ຍ',
       creditAccNameEng: 'Savings Account',
@@ -308,9 +308,9 @@ async function main() {
     { date: new Date('2024-10-05'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(1_500_000), desc: 'ຖອນເງິນສຸກເສີນ ຕຸລາ 2024' },
     { date: new Date('2025-01-10'), acc: ACC_SAVINGS2, code: TX_WITHDRAW,  amount: BigInt(1_000_000), desc: 'ຖອນເງິນ ມັງກອນ 2025' },
 
-    // ── ເງິນປັບຜົນ / ດອກເບ້ຍ (2203) ────────────────
+    // ── ເງິນປັນຜົນ / ດອກເບ້ຍ (2203) ────────────────
     { date: new Date('2023-12-31'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(312_500),   desc: 'ດອກເບ້ຍເງິນຝາກ ປີ 2023' },
-    { date: new Date('2024-06-30'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(281_250),   desc: 'ປັບຜົນດອກເບ້ຍ ຄຶ່ງປີ 2024' },
+    { date: new Date('2024-06-30'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(281_250),   desc: 'ປັນຜົນດອກເບ້ຍ ຄຶ່ງປີ 2024' },
     { date: new Date('2024-12-31'), acc: ACC_SAVINGS2, code: TX_INTEREST,  amount: BigInt(325_000),   desc: 'ດອກເບ້ຍເງິນຝາກ ປີ 2024' },
 
     // ════════════════════════════════════════════════
@@ -363,7 +363,7 @@ async function main() {
   console.log(`  Login:   bankbookNumber=${CLIENT_BANKBOOK}  password=${CLIENT_PASSWORD}`);
   console.log(`  ເງິນຝາກ : ${ACC_SAVINGS2}`);
   console.log(`  ເງິນກູ້  : ${ACC_LOAN2}`);
-  console.log('  TX codes: 2201=ຝາກ  2202=ຖອນ  2203=ປັບຜົນ  1011=ຕົ້ນທຶນ  1012=ດອກເບ້ຍ  1201=ປ່ອຍກູ້');
+  console.log('  TX codes: 2201=ຝາກ  2202=ຖອນ  2203=ປັນຜົນ  1011=ຕົ້ນທຶນ  1012=ດອກເບ້ຍ  1201=ປ່ອຍກູ້');
   console.log('─────────────────────────────────────────────');
 }
 

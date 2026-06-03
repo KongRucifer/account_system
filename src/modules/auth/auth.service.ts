@@ -6,9 +6,24 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { Client, ClientAccount } from '@prisma/client';
 import { LoginDto } from './dto/login.dto';
+import { SystemLoginDto } from './dto/system-login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { getTranslatedError } from '../../shared/i18n/error-messages';
+
+export interface SystemTokenResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+  expiresAt: Date;
+  user: {
+    id: number;
+    userName: string;
+    nsoEmployeeId: string | null;
+    statusId: string;
+    roles: string[];
+  };
+}
 
 export interface TokenResponse {
   accessToken: string;
@@ -78,6 +93,67 @@ export class AuthService {
 
     // 5. Generate 1 token bound to bankbookNumber
     return this.generateTokens(clientAccount.bankbookNumber, clientAccount.vbCode, clientAccount.username, clients, ipAddress, userAgent);
+  }
+
+  /**
+   * Login for an internal SYSTEM user (table `system_user`).
+   * Returns a JWT access token + the matched user (so the app knows WHICH user logged in).
+   * Supports both bcrypt-hashed and legacy plaintext passwords.
+   */
+  async loginSystemUser(dto: SystemLoginDto): Promise<SystemTokenResponse> {
+    // 1. Find the system user by user_name
+    const user = await this.prisma.systemUser.findFirst({
+      where: { userName: dto.userName },
+      include: {
+        roles: { include: { systemRole: true } },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Username is incorrect');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException('This account has no password set');
+    }
+
+    // 2. Verify password — accept bcrypt hash, fall back to plaintext (legacy data)
+    const looksHashed = /^\$2[aby]\$/.test(user.password);
+    const isPasswordValid = looksHashed
+      ? await bcrypt.compare(dto.password, user.password)
+      : dto.password === user.password;
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Password is incorrect');
+    }
+
+    // 3. Issue an access token. sub = `sys:<id>` so it can't collide with client tokens.
+    const payload = {
+      sub: `sys:${user.id}`,
+      userName: user.userName,
+      role: 'system',
+      type: 'access',
+    };
+
+    const expiresIn = 8 * 60 * 60; // 8 hours (in seconds) — convenient for a field app
+    const accessToken = await this.jwtService.signAsync(payload, {
+      expiresIn: `${expiresIn}s`,
+    });
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    return {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn,
+      expiresAt,
+      user: {
+        id: user.id,
+        userName: user.userName,
+        nsoEmployeeId: user.nsoEmployeeId,
+        statusId: user.statusId,
+        roles: user.roles.map((r) => r.systemRole.nameEng),
+      },
+    };
   }
 
   async register(registerDto: RegisterDto): Promise<{ message: string }> {

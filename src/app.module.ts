@@ -6,6 +6,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { VillageDataModule } from './modules/village-data/village-data.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     TransactionsModule,
     DashboardModule,
     NotificationsModule,
+    VillageDataModule,
   ],
 })
 export class AppModule {}

@@ -1,8 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AuthService, TokenResponse } from './auth.service';
+import { AuthService, TokenResponse, SystemTokenResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { SystemLoginDto } from './dto/system-login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -29,6 +30,20 @@ export class AuthController {
     this.setTokenCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
     
     return result;
+  }
+
+  @Post('login-test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Login (SYSTEM user) — authenticate a system_user and return a JWT access token',
+    description:
+      'Used by the offline-capable management app. Validates user_name + password against the ' +
+      'system_user table and returns a bearer token plus the matched user (id, userName, roles).',
+  })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  async loginTest(@Body() dto: SystemLoginDto): Promise<SystemTokenResponse> {
+    return this.authService.loginSystemUser(dto);
   }
 
   @Post('refresh')
