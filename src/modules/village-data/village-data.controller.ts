@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -10,6 +10,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { VillageDataService } from './village-data.service';
 import { VbCodeQueryDto, AccountOwnerQueryDto } from './dto/vbcode-query.dto';
+import { UpdateSavingsDto } from './dto/update-savings.dto';
 
 @ApiTags('Village Data (offline app)')
 @ApiBearerAuth()
@@ -41,6 +42,20 @@ export class VillageDataController {
   @ApiResponse({ status: 200, description: 'Account owners fetched successfully' })
   listAccountOwners(@Query() query: AccountOwnerQueryDto) {
     return this.villageDataService.listAccountOwners(query);
+  }
+
+  @Patch('accounts/:accNumber/savings')
+  @ApiOperation({
+    summary: 'Edit the savings (deposit) balance of an account',
+    description:
+      'Write path used by the offline app: the app queues edits locally while offline and ' +
+      'pushes them here once it is back online.',
+  })
+  @ApiParam({ name: 'accNumber', description: 'Account number', example: '010100100000001' })
+  @ApiResponse({ status: 200, description: 'Savings balance updated' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  updateSavings(@Param('accNumber') accNumber: string, @Body() dto: UpdateSavingsDto) {
+    return this.villageDataService.updateSavings(accNumber, dto);
   }
 
   @Get('sync')

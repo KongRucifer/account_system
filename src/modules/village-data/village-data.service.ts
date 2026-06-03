@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import {
@@ -6,6 +6,7 @@ import {
   createPrismaPaginatedResponse,
 } from '../../common/utils/prisma-pagination.util';
 import { VbCodeQueryDto, AccountOwnerQueryDto } from './dto/vbcode-query.dto';
+import { UpdateSavingsDto } from './dto/update-savings.dto';
 
 /** Shape returned for a single village bank (vbcode) row. */
 export interface VbCodeListItem {
@@ -184,6 +185,48 @@ export class VillageDataService {
       limit,
       'Account owners fetched successfully',
     );
+  }
+
+  // ── 3b. Edit the savings (deposit) balance of an account ────────────────────
+  // This is the WRITE path the offline app pushes to when it regains internet.
+  async updateSavings(
+    accNumber: string,
+    dto: UpdateSavingsDto,
+  ): Promise<{
+    accNumber: string;
+    vbCode: string;
+    currentBalance: number;
+    lastUpdate: Date;
+  }> {
+    const account = await this.prisma.accounts.findUnique({
+      where: { accNumber },
+      select: { accNumber: true, vbCode: true },
+    });
+
+    if (!account) {
+      throw new NotFoundException(`Account ${accNumber} not found`);
+    }
+
+    // Ownership guard: if the client sent a vbCode, it must match.
+    if (dto.vbCode && dto.vbCode.trim() !== account.vbCode.trim()) {
+      throw new BadRequestException('vbCode does not match this account');
+    }
+
+    const updated = await this.prisma.accounts.update({
+      where: { accNumber },
+      data: {
+        currentBalance: BigInt(dto.currentBalance),
+        lastUpdate: new Date(),
+      },
+      select: { accNumber: true, vbCode: true, currentBalance: true, lastUpdate: true },
+    });
+
+    return {
+      accNumber: updated.accNumber.trim(),
+      vbCode: updated.vbCode.trim(),
+      currentBalance: Number(updated.currentBalance),
+      lastUpdate: updated.lastUpdate,
+    };
   }
 
   // ── 4. Sync snapshot — full dataset for offline SQLite caching ──────────────
