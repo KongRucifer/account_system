@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -11,6 +11,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { VillageDataService } from './village-data.service';
 import { VbCodeQueryDto, AccountOwnerQueryDto } from './dto/vbcode-query.dto';
 import { UpdateSavingsDto } from './dto/update-savings.dto';
+import { WithdrawDto } from './dto/withdraw.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Village Data (offline app)')
 @ApiBearerAuth()
@@ -56,6 +58,26 @@ export class VillageDataController {
   @ApiResponse({ status: 404, description: 'Account not found' })
   updateSavings(@Param('accNumber') accNumber: string, @Body() dto: UpdateSavingsDto) {
     return this.villageDataService.updateSavings(accNumber, dto);
+  }
+
+  @Post('accounts/:accNumber/withdraw')
+  @ApiOperation({
+    summary: 'Withdraw from savings — decreases the balance AND records a 3101 withdrawal transaction',
+  })
+  @ApiParam({ name: 'accNumber', description: 'Account number', example: '010100100000001' })
+  @ApiResponse({ status: 201, description: 'Withdrawal recorded' })
+  @ApiResponse({ status: 400, description: 'Insufficient balance / vbCode mismatch' })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  withdraw(@Param('accNumber') accNumber: string, @Body() dto: WithdrawDto) {
+    return this.villageDataService.withdraw(accNumber, dto);
+  }
+
+  @Get('accounts/:accNumber/withdrawals')
+  @ApiOperation({ summary: 'List withdrawal transactions (only tx code 3101) for an account' })
+  @ApiParam({ name: 'accNumber', description: 'Account number', example: '010100100000001' })
+  @ApiResponse({ status: 200, description: 'Withdrawals fetched successfully' })
+  listWithdrawals(@Param('accNumber') accNumber: string, @Query() pagination: PaginationDto) {
+    return this.villageDataService.listWithdrawals(accNumber, pagination);
   }
 
   @Get('sync')

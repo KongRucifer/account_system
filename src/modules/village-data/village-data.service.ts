@@ -7,6 +7,12 @@ import {
 } from '../../common/utils/prisma-pagination.util';
 import { VbCodeQueryDto, AccountOwnerQueryDto } from './dto/vbcode-query.dto';
 import { UpdateSavingsDto } from './dto/update-savings.dto';
+import { WithdrawDto } from './dto/withdraw.dto';
+import { randomUUID } from 'crypto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+
+// Savings withdrawal transaction code (see TransactionsService.SAVINGS_TX_CODES).
+const SAVINGS_WITHDRAW_TX_CODE = '3101';
 
 /** Shape returned for a single village bank (vbcode) row. */
 export interface VbCodeListItem {
@@ -227,6 +233,140 @@ export class VillageDataService {
       currentBalance: Number(updated.currentBalance),
       lastUpdate: updated.lastUpdate,
     };
+  }
+
+  // ── 3c. Withdraw from savings → records a 3101 withdrawal transaction ────────
+  // Atomically: decrease the savings balance AND create a withdrawal (tx 3101).
+  async withdraw(
+    accNumber: string,
+    dto: WithdrawDto,
+  ): Promise<{
+    accNumber: string;
+    vbCode: string;
+    amount: number;
+    currentBalance: number;
+    transactionId: string;
+    date: Date;
+  }> {
+    const account = await this.prisma.accounts.findUnique({
+      where: { accNumber },
+      select: {
+        accNumber: true,
+        vbCode: true,
+        bankbookNumber: true,
+        currentBalance: true,
+      },
+    });
+
+    if (!account) {
+      throw new NotFoundException(`Account ${accNumber} not found`);
+    }
+    if (dto.vbCode && dto.vbCode.trim() !== account.vbCode.trim()) {
+      throw new BadRequestException('vbCode does not match this account');
+    }
+
+    const amount = BigInt(dto.amount);
+    if (account.currentBalance < amount) {
+      throw new BadRequestException(
+        `Insufficient savings balance (have ${account.currentBalance}, need ${amount})`,
+      );
+    }
+
+    // The withdrawal transaction code must exist (FK to transaction_code).
+    const txCode = await this.prisma.transactionCode.findUnique({
+      where: { transactionCode: SAVINGS_WITHDRAW_TX_CODE },
+      select: { transactionCode: true },
+    });
+    if (!txCode) {
+      throw new BadRequestException(
+        `Transaction code ${SAVINGS_WITHDRAW_TX_CODE} not found in this database`,
+      );
+    }
+
+    const txId = randomUUID();
+    const newBalance = account.currentBalance - amount;
+    const now = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.accounts.update({
+        where: { accNumber },
+        data: { currentBalance: newBalance, lastUpdate: now },
+      }),
+      this.prisma.transactions.create({
+        data: {
+          id: txId,
+          date: now,
+          bankbookNumber: account.bankbookNumber,
+          transactionCodeId: SAVINGS_WITHDRAW_TX_CODE,
+          amount,
+          // Self-referencing debit/credit keeps the FK valid and makes the row
+          // discoverable by the account's withdrawal list.
+          debitAccNumber: account.accNumber,
+          creditAccNumber: account.accNumber,
+          vbCode: account.vbCode,
+          description: dto.note?.trim() || 'Savings withdrawal',
+          userId: 'qr-withdraw',
+        },
+      }),
+    ]);
+
+    return {
+      accNumber: account.accNumber.trim(),
+      vbCode: account.vbCode.trim(),
+      amount: dto.amount,
+      currentBalance: Number(newBalance),
+      transactionId: txId,
+      date: now,
+    };
+  }
+
+  // ── 3d. List withdrawal transactions (only tx code 3101) for an account ─────
+  async listWithdrawals(
+    accNumber: string,
+    pagination: PaginationDto,
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, limit } = getPrismaPagination(pagination.page, pagination.limit);
+
+    const account = await this.prisma.accounts.findUnique({
+      where: { accNumber },
+      select: { accNumber: true, vbCode: true, bankbookNumber: true },
+    });
+    if (!account) {
+      throw new NotFoundException(`Account ${accNumber} not found`);
+    }
+
+    const where: any = {
+      transactionCodeId: SAVINGS_WITHDRAW_TX_CODE,
+      vbCode: account.vbCode,
+      OR: [{ debitAccNumber: accNumber }, { creditAccNumber: accNumber }],
+      NOT: { description: { startsWith: 'Reversed Trax By :' } },
+    };
+    if (account.bankbookNumber) where.bankbookNumber = account.bankbookNumber;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.transactions.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { date: pagination.sort || 'desc' },
+        include: { transactionCode: { select: { nameLao: true, nameEng: true } } },
+      }),
+      this.prisma.transactions.count({ where }),
+    ]);
+
+    const results = rows.map((t) => ({
+      id: t.id,
+      accNumber: accNumber.trim(),
+      vbCode: t.vbCode.trim(),
+      bankbookNumber: t.bankbookNumber?.trim() ?? null,
+      amount: Number(t.amount),
+      date: t.date,
+      description: t.description,
+      txCode: t.transactionCodeId.trim(),
+      txName: t.transactionCode?.nameLao ?? t.transactionCode?.nameEng ?? null,
+    }));
+
+    return createPrismaPaginatedResponse(results, total, page, limit, 'Withdrawals fetched successfully');
   }
 
   // ── 4. Sync snapshot — full dataset for offline SQLite caching ──────────────
