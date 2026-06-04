@@ -80,6 +80,31 @@ export class VillageDataController {
     return this.villageDataService.listWithdrawals(accNumber, pagination);
   }
 
+  @Get('find-by-document')
+  @ApiOperation({
+    summary: 'Find account owner by ID document number',
+    description:
+      'Lookup chain: id_document.idDocumentNumber → clientId → account_owner. ' +
+      'Returns the matched AccountOwner (same shape as /account-owners). ' +
+      'Pass vbCode to scope the search to a specific village.',
+  })
+  @ApiQuery({ name: 'idNumber', required: true, description: 'ID document number (iddocmentnumber column)' })
+  @ApiQuery({ name: 'vbCode', required: false, description: 'Optional village-bank code to narrow the search' })
+  @ApiResponse({ status: 200, description: 'Account owner found' })
+  @ApiResponse({ status: 404, description: 'No document / no account owner found' })
+  async findByDocumentId(
+    @Query('idNumber') idNumber: string,
+    @Query('vbCode') vbCode?: string,
+  ) {
+    const result = await this.villageDataService.findByDocumentId(idNumber, vbCode);
+    if (!result) {
+      throw new (await import('@nestjs/common').then(m => m.NotFoundException))(
+        `No account owner found for document "${idNumber}"`,
+      );
+    }
+    return result;
+  }
+
   @Get('sync')
   @ApiOperation({
     summary: 'Sync snapshot — full dataset (vbcodes + account owners) for offline SQLite caching',

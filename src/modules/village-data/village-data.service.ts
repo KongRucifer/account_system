@@ -374,6 +374,69 @@ export class VillageDataService {
     };
   }
 
+  // ── 3e. Find account owner by ID-document number ────────────────────────────
+  // Lookup chain: id_document.idDocumentNumber → clientId → account_owner → AccountOwnerItem
+  async findByDocumentId(
+    idNumber: string,
+    vbCode?: string,
+  ): Promise<AccountOwnerItem | null> {
+    const trimmed = idNumber.trim();
+    if (!trimmed) return null;
+
+    // 1. Search id_document by idDocumentNumber (mapped to "iddocmentnumber" column).
+    //    Also filter by vbCode when provided so the result is scoped to this village.
+    const doc = await this.prisma.idDocument.findFirst({
+      where: {
+        idDocumentNumber: trimmed,
+        ...(vbCode?.trim() ? { vbCode: vbCode.trim() } : {}),
+      },
+      select: { clientId: true, vbCode: true },
+      orderBy: { id: 'desc' },
+    });
+
+    if (!doc) return null;
+
+    // 2. Find the account_owner row for this client.
+    const effectiveVbCode = vbCode?.trim() || doc.vbCode?.trim();
+    const owner = await this.prisma.accountOwner.findFirst({
+      where: {
+        clientId: doc.clientId,
+        ...(effectiveVbCode ? { vbCode: effectiveVbCode } : {}),
+      },
+      include: {
+        client: { select: { firstName: true, lastName: true, nickName: true } },
+        account: {
+          select: {
+            accNameLao: true,
+            accNameEng: true,
+            currentBalance: true,
+            statusId: true,
+            accountType: { select: { nameLao: true, nameEng: true } },
+          },
+        },
+      },
+      orderBy: { accNumber: 'asc' },
+    });
+
+    if (!owner) return null;
+
+    return {
+      bankbookNumber: owner.bankbookNumber,
+      accNumber: owner.accNumber,
+      vbCode: owner.vbCode,
+      clientId: owner.clientId,
+      clientName: this.fullName(owner.client),
+      accNameLao: owner.account?.accNameLao ?? null,
+      accNameEng: owner.account?.accNameEng ?? null,
+      currentBalance: owner.account ? Number(owner.account.currentBalance) : 0,
+      accountType:
+        owner.account?.accountType?.nameLao ??
+        owner.account?.accountType?.nameEng ??
+        null,
+      statusId: owner.account?.statusId ?? null,
+    };
+  }
+
   // ── 3d. List withdrawal transactions (only tx code 3101) for an account ─────
   async listWithdrawals(
     accNumber: string,
