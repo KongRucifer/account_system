@@ -85,6 +85,24 @@ export class VillageDataController {
     return this.villageDataService.listWithdrawals(accNumber, pagination);
   }
 
+  @Get('find-by-account')
+  @ApiOperation({
+    summary: 'Find account owner by account number — resolves bankbookNumber + vbCode automatically',
+    description: 'The QR code only needs to carry the accNumber. The backend looks up vbCode and bankbookNumber from the accounts table.',
+  })
+  @ApiQuery({ name: 'accNumber', required: true, description: 'Account number (15 chars)' })
+  @ApiResponse({ status: 200, description: 'Account owner found' })
+  @ApiResponse({ status: 404, description: 'Account or owner not found' })
+  async findByAccNumber(@Query('accNumber') accNumber: string) {
+    const result = await this.villageDataService.findByAccNumber(accNumber);
+    if (!result) {
+      throw new (await import('@nestjs/common').then(m => m.NotFoundException))(
+        `No account owner found for account "${accNumber}"`,
+      );
+    }
+    return result;
+  }
+
   @Get('find-by-document')
   @ApiOperation({
     summary: 'Find account owner by ID document number',
