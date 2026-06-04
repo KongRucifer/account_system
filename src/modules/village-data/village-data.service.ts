@@ -235,8 +235,11 @@ export class VillageDataService {
     };
   }
 
-  // ── 3c. Withdraw from savings → records a 3101 withdrawal transaction ────────
-  // Atomically: decrease the savings balance AND create a withdrawal (tx 3101).
+  // ── 3c. Withdraw from savings ─────────────────────────────────────────────────
+  // Atomically:
+  //   1. Decrease accounts.current_balance
+  //   2. Create a 3101 withdrawal transaction (if tx code exists in this DB)
+  //   3. Insert a client_equity_saving_arrangement row with withdrawalAmount filled
   async withdraw(
     accNumber: string,
     dto: WithdrawDto,
@@ -246,8 +249,11 @@ export class VillageDataService {
     amount: number;
     currentBalance: number;
     transactionId: string;
+    arrangementId: number | null;
+    paymentMethod: string;
     date: Date;
   }> {
+    // ── 1. Validate account ───────────────────────────────────────────────────
     const account = await this.prisma.accounts.findUnique({
       where: { accNumber },
       select: {
@@ -255,6 +261,7 @@ export class VillageDataService {
         vbCode: true,
         bankbookNumber: true,
         currentBalance: true,
+        statusId: true,
       },
     });
 
@@ -272,23 +279,48 @@ export class VillageDataService {
       );
     }
 
-    const txCodeExists = await this.prisma.transactionCode.findUnique({
-      where: { transactionCode: SAVINGS_WITHDRAW_TX_CODE },
-      select: { transactionCode: true },
-    });
+    // ── 2. Resolve optional dependencies ─────────────────────────────────────
+    const [txCodeRow, existingArrangement] = await Promise.all([
+      this.prisma.transactionCode.findUnique({
+        where: { transactionCode: SAVINGS_WITHDRAW_TX_CODE },
+        select: { transactionCode: true },
+      }),
+      // Find the most-recent equity saving arrangement for this account so we
+      // can copy clientEquitySavingConditionId and statusId (both required).
+      // Fall back to any arrangement on the same vbCode if the account has none.
+      this.prisma.clientEquitySavingArrangement.findFirst({
+        where: { accNumber },
+        select: { clientEquitySavingConditionId: true, statusId: true },
+        orderBy: { id: 'desc' },
+      }).then(async (row) => {
+        if (row) return row;
+        return this.prisma.clientEquitySavingArrangement.findFirst({
+          where: { vbCode: account.vbCode },
+          select: { clientEquitySavingConditionId: true, statusId: true },
+          orderBy: { id: 'desc' },
+        });
+      }),
+    ]);
 
     const txId = randomUUID();
     const newBalance = account.currentBalance - amount;
     const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    if (txCodeExists) {
-      // Full atomic operation: update balance + create the 3101 transaction row.
-      await this.prisma.$transaction([
-        this.prisma.accounts.update({
-          where: { accNumber },
-          data: { currentBalance: newBalance, lastUpdate: now },
-        }),
-        this.prisma.transactions.create({
+    const conditionId = existingArrangement?.clientEquitySavingConditionId ?? null;
+    const arrangementStatusId = existingArrangement?.statusId ?? account.statusId;
+
+    // ── 3. Execute all writes atomically (interactive transaction) ────────────
+    const arrangementId = await this.prisma.$transaction(async (tx) => {
+      // Always: update the savings balance.
+      await tx.accounts.update({
+        where: { accNumber },
+        data: { currentBalance: newBalance, lastUpdate: now },
+      });
+
+      // If tx code 3101 exists: record a withdrawal transaction row.
+      if (txCodeRow) {
+        await tx.transactions.create({
           data: {
             id: txId,
             date: now,
@@ -300,17 +332,35 @@ export class VillageDataService {
             vbCode: account.vbCode,
             description: dto.note?.trim() || 'Savings withdrawal',
             userId: 'qr-withdraw',
+            paymentMethod: dto.paymentMethod,
           },
-        }),
-      ]);
-    } else {
-      // Tx code 3101 not seeded in this DB: just update the balance.
-      // The withdrawal still succeeds; no transaction history row is created.
-      await this.prisma.accounts.update({
-        where: { accNumber },
-        data: { currentBalance: newBalance, lastUpdate: now },
-      });
-    }
+        });
+      }
+
+      // If a clientEquitySavingConditionId exists for this account/vbCode:
+      // insert a client_equity_saving_arrangement row with withdrawalAmount filled.
+      // clientEquitySavingConditionId has no default in the DB so we skip if unknown.
+      if (conditionId !== null) {
+        const arr = await tx.clientEquitySavingArrangement.create({
+          data: {
+            date: today,
+            accNumber: account.accNumber,
+            vbCode: account.vbCode,
+            currentBalance: newBalance,     // balance after the withdrawal
+            savingAmount: BigInt(0),        // no deposit this operation
+            withdrawalAmount: amount,       // ← the withdrawal amount
+            interestNumerator: BigInt(0),   // no interest on withdrawals
+            clientEquitySavingConditionId: conditionId,
+            statusId: arrangementStatusId,
+            needSync: 'Y',
+          },
+          select: { id: true },
+        });
+        return Number(arr.id);
+      }
+
+      return null;
+    });
 
     return {
       accNumber: account.accNumber.trim(),
@@ -318,6 +368,8 @@ export class VillageDataService {
       amount: dto.amount,
       currentBalance: Number(newBalance),
       transactionId: txId,
+      arrangementId,
+      paymentMethod: dto.paymentMethod,
       date: now,
     };
   }
@@ -366,6 +418,7 @@ export class VillageDataService {
       description: t.description,
       txCode: t.transactionCodeId.trim(),
       txName: t.transactionCode?.nameLao ?? t.transactionCode?.nameEng ?? null,
+      paymentMethod: t.paymentMethod ?? null,
     }));
 
     return createPrismaPaginatedResponse(results, total, page, limit, 'Withdrawals fetched successfully');
