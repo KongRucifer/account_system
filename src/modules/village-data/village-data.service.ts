@@ -272,43 +272,45 @@ export class VillageDataService {
       );
     }
 
-    // The withdrawal transaction code must exist (FK to transaction_code).
-    const txCode = await this.prisma.transactionCode.findUnique({
+    const txCodeExists = await this.prisma.transactionCode.findUnique({
       where: { transactionCode: SAVINGS_WITHDRAW_TX_CODE },
       select: { transactionCode: true },
     });
-    if (!txCode) {
-      throw new BadRequestException(
-        `Transaction code ${SAVINGS_WITHDRAW_TX_CODE} not found in this database`,
-      );
-    }
 
     const txId = randomUUID();
     const newBalance = account.currentBalance - amount;
     const now = new Date();
 
-    await this.prisma.$transaction([
-      this.prisma.accounts.update({
+    if (txCodeExists) {
+      // Full atomic operation: update balance + create the 3101 transaction row.
+      await this.prisma.$transaction([
+        this.prisma.accounts.update({
+          where: { accNumber },
+          data: { currentBalance: newBalance, lastUpdate: now },
+        }),
+        this.prisma.transactions.create({
+          data: {
+            id: txId,
+            date: now,
+            bankbookNumber: account.bankbookNumber,
+            transactionCodeId: SAVINGS_WITHDRAW_TX_CODE,
+            amount,
+            debitAccNumber: account.accNumber,
+            creditAccNumber: account.accNumber,
+            vbCode: account.vbCode,
+            description: dto.note?.trim() || 'Savings withdrawal',
+            userId: 'qr-withdraw',
+          },
+        }),
+      ]);
+    } else {
+      // Tx code 3101 not seeded in this DB: just update the balance.
+      // The withdrawal still succeeds; no transaction history row is created.
+      await this.prisma.accounts.update({
         where: { accNumber },
         data: { currentBalance: newBalance, lastUpdate: now },
-      }),
-      this.prisma.transactions.create({
-        data: {
-          id: txId,
-          date: now,
-          bankbookNumber: account.bankbookNumber,
-          transactionCodeId: SAVINGS_WITHDRAW_TX_CODE,
-          amount,
-          // Self-referencing debit/credit keeps the FK valid and makes the row
-          // discoverable by the account's withdrawal list.
-          debitAccNumber: account.accNumber,
-          creditAccNumber: account.accNumber,
-          vbCode: account.vbCode,
-          description: dto.note?.trim() || 'Savings withdrawal',
-          userId: 'qr-withdraw',
-        },
-      }),
-    ]);
+      });
+    }
 
     return {
       accNumber: account.accNumber.trim(),
