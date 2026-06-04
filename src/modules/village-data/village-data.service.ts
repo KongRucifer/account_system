@@ -243,6 +243,7 @@ export class VillageDataService {
   async withdraw(
     accNumber: string,
     dto: WithdrawDto,
+    performingUserId: string = 'qr-withdraw',
   ): Promise<{
     accNumber: string;
     vbCode: string;
@@ -318,6 +319,19 @@ export class VillageDataService {
         data: { currentBalance: newBalance, lastUpdate: now },
       });
 
+      // Decrease currentBalance on every acc_code target row in the same vbCode.
+      // Uses raw SQL for an IN-clause on a padded CHAR column (trim needed).
+      await tx.$executeRaw`
+        UPDATE accounts
+        SET  current_balance = current_balance - ${amount},
+             last_update     = ${now}
+        WHERE vbcode = ${account.vbCode}
+          AND TRIM(acc_code) IN (
+                '110','1101','11011','110110','1101100',
+                '100','370','3702','37020','370200','3702000','300'
+              )
+      `;
+
       // If tx code 3101 exists: record a withdrawal transaction row.
       if (txCodeRow) {
         await tx.transactions.create({
@@ -330,8 +344,8 @@ export class VillageDataService {
             debitAccNumber: account.accNumber,
             creditAccNumber: account.accNumber,
             vbCode: account.vbCode,
-            description: dto.note?.trim() || 'Savings withdrawal',
-            userId: 'qr-withdraw',
+            description: dto.note?.trim() || 'Savings payment',
+            userId: performingUserId,   // ← actual logged-in system user ID
             paymentMethod: dto.paymentMethod,
           },
         });

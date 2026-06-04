@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -62,14 +63,18 @@ export class VillageDataController {
 
   @Post('accounts/:accNumber/withdraw')
   @ApiOperation({
-    summary: 'Withdraw from savings — decreases the balance AND records a 3101 withdrawal transaction',
+    summary: 'Pay from savings — decreases the balance, updates acc_code parent rows, and records a 3101 transaction with the performer\'s user ID',
   })
   @ApiParam({ name: 'accNumber', description: 'Account number', example: '010100100000001' })
-  @ApiResponse({ status: 201, description: 'Withdrawal recorded' })
+  @ApiResponse({ status: 201, description: 'Payment recorded' })
   @ApiResponse({ status: 400, description: 'Insufficient balance / vbCode mismatch' })
   @ApiResponse({ status: 404, description: 'Account not found' })
-  withdraw(@Param('accNumber') accNumber: string, @Body() dto: WithdrawDto) {
-    return this.villageDataService.withdraw(accNumber, dto);
+  withdraw(@Req() req: Request, @Param('accNumber') accNumber: string, @Body() dto: WithdrawDto) {
+    // req.user is set by JwtStrategy.validate().
+    // For system users the sub is 'sys:<id>' so we keep the full string as the userId
+    // so the transaction row shows exactly WHO (which system user) made the payment.
+    const performingUserId: string = (req.user as any)?.bankbookNumber ?? 'unknown';
+    return this.villageDataService.withdraw(accNumber, dto, performingUserId);
   }
 
   @Get('accounts/:accNumber/withdrawals')
