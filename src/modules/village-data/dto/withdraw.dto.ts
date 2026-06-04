@@ -1,7 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { PaymentMethod } from '@prisma/client';
+
+// Plain TS enum stored as VARCHAR(20) in the DB (not a PostgreSQL native enum).
+export enum PaymentMethod {
+  Cash = 'Cash',
+  BankTransfer = 'BankTransfer',
+}
 
 /** Withdraw (cut) an amount from an account's savings balance. */
 export class WithdrawDto {

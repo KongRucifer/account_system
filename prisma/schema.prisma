@@ -617,10 +617,8 @@ model ChartOfAccounts {
   @@map("chart_of_accounts")
 }
 
-enum PaymentMethod {
-  Cash
-  BankTransfer
-}
+// PaymentMethod stored as VARCHAR(20) with a DB-level CHECK (Cash | BankTransfer).
+// We use String in Prisma (not a native PG enum) to avoid Prisma enum-type conflicts.
 
 model Transactions {
   id                                                String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
@@ -635,7 +633,7 @@ model Transactions {
   synchronized                                      DateTime?       @db.Timestamp(6)
   description                                       String?         @db.VarChar
   needSync                                          String?         @map("need_sync") @db.Char(1)
-  paymentMethod                                     PaymentMethod?  @map("payment_method") @default(Cash)
+  paymentMethod                                     String?         @map("payment_method") @default("Cash") @db.VarChar(20)
   debitAccount                                      Accounts        @relation(fields: [debitAccNumber], references: [accNumber], onUpdate: Restrict, map: "FK_1431")
   accounts_transactions_credit_acc_numberToaccounts Accounts        @relation("transactions_credit_acc_numberToaccounts", fields: [creditAccNumber], references: [accNumber], onUpdate: Restrict, map: "FK_1434")
   transactionCode                                   TransactionCode @relation(fields: [transactionCodeId], references: [transactionCode], onUpdate: Restrict, map: "FK_1442")
