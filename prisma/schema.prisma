@@ -395,6 +395,8 @@ model Client {
   needSync               String?                 @map("need_sync") @db.Char(1)
   civilStatusId          String?                 @map("civil_status_id") @db.Char(2)
   ethnicId               String?                 @map("ethnic_id") @db.Char(2)
+  requestName            String?                 @map("request_name") @db.VarChar
+  requestAccNumber       String?                 @map("request_acc_number") @db.VarChar
   accountOwners          AccountOwner[]
   profession             Profession?             @relation(fields: [professionId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "FK_1454")
   economicStatus         EconomicStatus?         @relation(fields: [economicStatusId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "FK_1550")

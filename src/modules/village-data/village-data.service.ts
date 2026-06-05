@@ -7,7 +7,7 @@ import {
 } from '../../common/utils/prisma-pagination.util';
 import { VbCodeQueryDto, AccountOwnerQueryDto } from './dto/vbcode-query.dto';
 import { UpdateSavingsDto } from './dto/update-savings.dto';
-import { WithdrawDto } from './dto/withdraw.dto';
+import { PaymentMethod, WithdrawDto } from './dto/withdraw.dto';
 import { randomUUID } from 'crypto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
@@ -311,7 +311,13 @@ export class VillageDataService {
     const conditionId = existingArrangement?.clientEquitySavingConditionId ?? null;
     const arrangementStatusId = existingArrangement?.statusId ?? account.statusId;
 
-    // ── 3. Execute all writes atomically (interactive transaction) ────────────
+    // ── 3. Find clientId via account_owner (needed to update client record) ─────
+    const ownerRow = await this.prisma.accountOwner.findFirst({
+      where: { accNumber, vbCode: account.vbCode },
+      select: { clientId: true },
+    });
+
+    // ── 4. Execute all writes atomically (interactive transaction) ────────────
     const arrangementId = await this.prisma.$transaction(async (tx) => {
       // Always: update the savings balance.
       await tx.accounts.update({
@@ -371,6 +377,21 @@ export class VillageDataService {
           select: { id: true },
         });
         return Number(arr.id);
+      }
+
+      // If Bank Transfer: save recipient info on the client record.
+      if (
+        dto.paymentMethod === PaymentMethod.BankTransfer &&
+        ownerRow &&
+        (dto.requestName?.trim() || dto.requestAccNumber?.trim())
+      ) {
+        await tx.client.update({
+          where: { id: ownerRow.clientId },
+          data: {
+            requestName:      dto.requestName?.trim()      || null,
+            requestAccNumber: dto.requestAccNumber?.trim() || null,
+          },
+        });
       }
 
       return null;
