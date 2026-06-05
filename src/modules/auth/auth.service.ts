@@ -135,7 +135,7 @@ export class AuthService {
       type: 'access',
     };
 
-    const expiresIn = 8 * 60 * 60; // 8 hours (in seconds) — convenient for a field app
+    const expiresIn = 30 * 60; // 30 minutes — short-lived for security
     const accessToken = await this.jwtService.signAsync(payload, {
       expiresIn: `${expiresIn}s`,
     });
