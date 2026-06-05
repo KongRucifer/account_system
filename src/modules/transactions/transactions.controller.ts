@@ -27,6 +27,20 @@ export class TransactionsController {
     return this.transactionsService.findByAccount(accountId, paginationDto, txCode);
   }
 
+  @Get('account/:accountId/payments')
+  @ApiOperation({
+    summary: 'Get only payment/withdrawal transactions (tx code 3101) for an account',
+    description: 'Same query logic as /account/:accountId but hard-filtered to SAVINGS_TX_CODE 3101.',
+  })
+  @ApiParam({ name: 'accountId', description: 'Account Number' })
+  @ApiResponse({ status: 200, description: 'Paginated 3101 transactions' })
+  findPayments(
+    @Param('accountId') accountId: string,
+    @Query() paginationDto: PaginationDto,
+  ) {
+    return this.transactionsService.findByAccount(accountId, paginationDto, '3101');
+  }
+
   @Get('account/:accountId/year/:year')
   @ApiOperation({ summary: 'Get account transactions filtered by year (paginated)' })
   @ApiParam({ name: 'accountId', description: 'Account Number (e.g., 12345)' })
