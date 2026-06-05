@@ -357,29 +357,8 @@ export class VillageDataService {
         });
       }
 
-      // If a clientEquitySavingConditionId exists for this account/vbCode:
-      // insert a client_equity_saving_arrangement row with withdrawalAmount filled.
-      // clientEquitySavingConditionId has no default in the DB so we skip if unknown.
-      if (conditionId !== null) {
-        const arr = await tx.clientEquitySavingArrangement.create({
-          data: {
-            date: today,
-            accNumber: account.accNumber,
-            vbCode: account.vbCode,
-            currentBalance: newBalance,     // balance after the withdrawal
-            savingAmount: BigInt(0),        // no deposit this operation
-            withdrawalAmount: amount,       // ← the withdrawal amount
-            interestNumerator: BigInt(0),   // no interest on withdrawals
-            clientEquitySavingConditionId: conditionId,
-            statusId: arrangementStatusId,
-            needSync: 'Y',
-          },
-          select: { id: true },
-        });
-        return Number(arr.id);
-      }
-
-      // If Bank Transfer: save recipient info on the client record.
+      // If Bank Transfer: save recipient name + account number on the client record.
+      // Must run BEFORE any early return so it always executes.
       if (
         dto.paymentMethod === PaymentMethod.BankTransfer &&
         ownerRow &&
@@ -392,6 +371,26 @@ export class VillageDataService {
             requestAccNumber: dto.requestAccNumber?.trim() || null,
           },
         });
+      }
+
+      // If a clientEquitySavingConditionId exists: insert the arrangement row.
+      if (conditionId !== null) {
+        const arr = await tx.clientEquitySavingArrangement.create({
+          data: {
+            date: today,
+            accNumber: account.accNumber,
+            vbCode: account.vbCode,
+            currentBalance: newBalance,
+            savingAmount: BigInt(0),
+            withdrawalAmount: amount,
+            interestNumerator: BigInt(0),
+            clientEquitySavingConditionId: conditionId,
+            statusId: arrangementStatusId,
+            needSync: 'Y',
+          },
+          select: { id: true },
+        });
+        return Number(arr.id);
       }
 
       return null;
